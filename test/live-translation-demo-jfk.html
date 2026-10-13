@@ -1,0 +1,133 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>live translation demo (JFK)</title></head>
+<body>
+<!--
+DIAGNOSTICO TEMPORANEO, non committare. Pipeline completa
+in -> whisper_asr -> translate_opus -> out, con audio JFK reale invece di
+rumore (a differenza di test/live-translation.html, che e' solo plumbing).
+Prova end-to-end dei due fix di design/STATO-live-translation.md.
+-->
+<button id="run">avvia</button>
+<pre id="out">pronto</pre>
+<script type="module">
+import { Juturna } from '../src/juturna.js';
+
+const out = document.getElementById('out');
+const log = (s) => { out.textContent += '\n' + s; console.log(s); };
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const url = (path) => new URL(path, location.href).href;
+
+const JFK_URL =
+  'https://huggingface.co/datasets/Xenova/transformers.js-docs/resolve/main/jfk.wav';
+const SR = 16000;
+const TARGET = new URLSearchParams(location.search).get('target') || 'it';
+
+const asrUrls = {
+  transformers_url: url('../vendor/whisper_asr/transformers/transformers.min.js'),
+  wasm_mjs_url: url('../vendor/whisper_asr/transformers/ort-wasm-simd-threaded.asyncify.mjs'),
+  wasm_bin_url: url('../vendor/whisper_asr/transformers/ort-wasm-simd-threaded.asyncify.wasm'),
+  models_url: url('../vendor/whisper_asr/models/'),
+};
+const mtUrls = {
+  transformers_url: url('../vendor/translate_opus/transformers/transformers.min.js'),
+  wasm_mjs_url: url('../vendor/translate_opus/transformers/ort-wasm-simd-threaded.asyncify.mjs'),
+  wasm_bin_url: url('../vendor/translate_opus/transformers/ort-wasm-simd-threaded.asyncify.wasm'),
+  models_url: url('../vendor/translate_opus/models/'),
+};
+
+async function loadJfk() {
+  log('scarico ' + JFK_URL + ' ...');
+  const resp = await fetch(JFK_URL);
+  const buf = await resp.arrayBuffer();
+  const probeCtx = new OfflineAudioContext(1, 1, SR);
+  const decoded = await probeCtx.decodeAudioData(buf.slice(0));
+  let samples;
+  if (decoded.sampleRate === SR && decoded.numberOfChannels === 1) {
+    samples = decoded.getChannelData(0).slice();
+  } else {
+    const off = new OfflineAudioContext(1, Math.ceil(decoded.duration * SR), SR);
+    const src = off.createBufferSource();
+    src.buffer = decoded;
+    src.connect(off.destination);
+    src.start();
+    samples = (await off.startRendering()).getChannelData(0).slice();
+  }
+  log('jfk caricato: ' + (samples.length / SR).toFixed(2) + 's');
+  return samples;
+}
+
+new BroadcastChannel('translate-probe').onmessage = (e) => log('[mt error] ' + e.data);
+
+async function run() {
+  const samples = await loadJfk();
+
+  const config = {
+    pipeline: {
+      name: 'lt', id: 'lt-1', folder: '/tmp/juturna/lt', transport: 'browser',
+      nodes: [
+        { name: 'in', type: 'BrowserInput', configuration: {} },
+        { name: 'asr', type: 'extensions.nodes.WhisperASR', worker: 'asr',
+          configuration: { ...asrUrls, window_seconds: 4.0, overlap_seconds: 0.5 } },
+        { name: 'mt', type: 'extensions.nodes.TranslateOpus', worker: 'mt',
+          configuration: { ...mtUrls, model_id: 'Xenova/opus-mt-en-' + TARGET, source_lang: 'en', target_lang: TARGET } },
+        { name: 'out', type: 'BrowserOutput', configuration: {} },
+      ],
+      links: [{ from: 'in', to: 'asr' }, { from: 'asr', to: 'mt' }, { from: 'mt', to: 'out' }],
+    },
+  };
+
+  log('avvio Juturna (3 Worker: main, asr, mt)...');
+  const jt = await Juturna.create({ workers: ['main', 'asr', 'mt'] });
+  const t0 = performance.now();
+  const pipe = await jt.pipeline(config);
+  log('pipeline pronta in ' + Math.round(performance.now() - t0) + 'ms');
+
+  pipe.output('out').on('message', (m) => {
+    log('[' + Math.round(performance.now() - t0) + 'ms] risultato: ' + JSON.stringify(m.payload));
+  });
+  pipe.onError((e) => log('!!! errore pipeline: ' + e.message));
+
+  const input = pipe.input('in');
+  await pipe.start();
+
+  // Manda l'intero JFK (11s) a finestre da 1s, come farebbe un microfono
+  // reale a streaming continuo.
+  const chunkSamples = SR; // 1s per chunk in ingresso
+  let sent = 0;
+  log('invio audio JFK a finestre da 1s...');
+  while (sent < samples.length) {
+    const end = Math.min(sent + chunkSamples, samples.length);
+    input.feed({
+      kind: 'audio',
+      // slice(), non subarray(): feed() trasferisce (zero-copy) l'intero
+      // ArrayBuffer sottostante. Un subarray condivide il buffer dell'array
+      // completo, quindi il primo feed() lo staccherebbe e ogni chunk
+      // successivo leggerebbe da un buffer gia' detached.
+      payload: {
+        audio: samples.slice(sent, end),
+        sampling_rate: SR, channels: 1, start: sent / SR,
+      },
+      meta: {},
+    });
+    sent = end;
+    await sleep(200); // non tutto in un colpo solo, come un microfono
+  }
+  log('audio inviato per intero, attendo eventuali risultati residui...');
+  await sleep(20000);
+
+  const status = await pipe.status();
+  log('status finale: ' + JSON.stringify(status.nodes && Object.fromEntries(
+    Object.entries(status.nodes).map(([k, v]) => [k, v.health]),
+  )));
+
+  await pipe.stop();
+  await pipe.destroy();
+  jt.terminate();
+  log('\n=== FINE ===');
+}
+
+document.getElementById('run').onclick = () => run().catch((e) => log('eccezione: ' + (e && e.stack || e)));
+</script>
+</body>
+</html>

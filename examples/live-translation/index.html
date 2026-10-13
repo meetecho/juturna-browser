@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>juturna: live translation - microphone</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --bg: #0b0d10; --panel: #12151a; --line: #22262d; --text: #e6e8eb;
+    --muted: #9aa3ad; --accent: #6ee7c8; --accent2: #7aa2ff; --mono: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
+  }
+  a { color: var(--accent2); }
+  code { font-family: var(--mono); background: #1a1e24; padding: 0 5px; border-radius: 4px; font-size: .9em; }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 32px 24px 72px; }
+  .back { color: var(--muted); text-decoration: none; font-size: .88rem; }
+  .back:hover { color: var(--text); }
+  h1 { font-size: 1.5rem; margin: 14px 0 6px; }
+
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 20px 22px; margin-bottom: 20px; }
+  .panel h2 { margin: 0 0 16px; font-size: .8rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; font-weight: 600; }
+  .row { display: flex; gap: 20px; flex-wrap: wrap; }
+  label { display: flex; flex-direction: column; gap: 6px; font-size: .85rem; color: var(--muted); }
+  select, input[type="number"] {
+    background: #1a1e24; border: 1px solid var(--line); color: var(--text);
+    border-radius: 6px; padding: 7px 10px; font: inherit; font-family: var(--mono); font-size: .9rem;
+  }
+  select:disabled, input:disabled { opacity: .5; }
+
+  .actions { display: flex; gap: 10px; align-items: center; margin: 22px 0; }
+  .btn { padding: 10px 22px; border-radius: 8px; border: 1px solid var(--line); background: transparent;
+         color: var(--text); font-weight: 600; font-size: .92rem; cursor: pointer; font-family: inherit; }
+  .btn.primary { background: var(--accent); color: #04140f; border-color: var(--accent); }
+  .btn:disabled { opacity: .4; cursor: default; }
+
+  #lines p { background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+             padding: 12px 16px; margin: 0 0 10px; }
+  #lines b { color: var(--text); }
+  #log { font-family: var(--mono); background: #1a1e24; border: 1px solid var(--line); border-radius: 8px;
+         padding: 12px 14px; font-size: .82rem; color: var(--muted); white-space: pre-wrap; min-height: 1.2em; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="../../index.html">← demos</a>
+  <h1>Live translation - microphone</h1>
+
+  <div class="panel">
+    <h2>Settings</h2>
+    <form id="settings">
+      <div class="row">
+        <label>target language
+          <select id="target-lang">
+            <option value="it">italiano</option>
+            <option value="es">español</option>
+            <option value="zh">中文</option>
+            <option value="de">deutsch</option>
+          </select>
+        </label>
+        <label>whisper window (s)
+          <input id="window-seconds" type="number" min="4" max="10" step="0.5" value="4.0" style="width:5em">
+        </label>
+        <label>capture chunk (ms)
+          <input id="chunk-ms" type="number" min="20" max="1000" step="20" value="100" style="width:5.5em">
+        </label>
+        <label>max threads <span title="onnxruntime-web's WASM pool, per node. Empty = auto (min(4, cores/2)).">ⓘ</span>
+          <input id="max-threads" type="number" min="1" max="16" step="1" placeholder="auto" style="width:5em">
+        </label>
+      </div>
+    </form>
+  </div>
+
+  <div class="actions">
+    <button id="start" class="btn primary">Start</button>
+    <button id="stop" class="btn" disabled>Stop</button>
+  </div>
+
+  <div id="lines"></div>
+  <pre id="log"></pre>
+</div>
+<script type="module">
+import { Juturna } from '../../src/juturna.js';
+
+const MODEL_ID = {
+  it: 'Xenova/opus-mt-en-it',
+  es: 'Xenova/opus-mt-en-es',
+  zh: 'Xenova/opus-mt-en-zh',
+  de: 'Xenova/opus-mt-en-de',
+};
+
+const RATE = 16000;
+const $ = (id) => document.getElementById(id);
+const log = (m) => { $('log').textContent += m + '\n'; };
+const url = (path) => new URL(path, location.href).href;
+
+const vendor = (path) => url('../../vendor/' + path);
+
+// Prefills the controls from the query string (?target=es&window=3
+// &chunk=200&maxThreads=4) so a link stays shareable.
+const query = new URLSearchParams(location.search);
+if (query.has('target') && MODEL_ID[query.get('target')]) {
+  $('target-lang').value = query.get('target');
+}
+if (query.has('window')) $('window-seconds').value = query.get('window');
+if (query.has('chunk')) $('chunk-ms').value = query.get('chunk');
+if (query.has('maxThreads')) $('max-threads').value = query.get('maxThreads');
+
+function buildConfig() {
+  const targetLang = $('target-lang').value;
+  // Clamped below 4s: whisper_asr's per-window cost is flat, so a
+  // shorter window falls behind real time instead of catching up.
+  const windowSeconds = Math.max(4, Number($('window-seconds').value) || 4.0);
+  const maxThreadsRaw = $('max-threads').value;
+  const maxThreads = maxThreadsRaw !== '' ? Number(maxThreadsRaw) : null;
+
+  return {
+    pipeline: {
+      name: 'lt', id: 'lt-1', folder: '/tmp/juturna/lt', transport: 'browser',
+      nodes: [
+        { name: 'in', type: 'BrowserInput', configuration: {} },
+        { name: 'asr', type: 'extensions.nodes.WhisperASR', worker: 'asr', configuration: {
+          transformers_url: vendor('whisper_asr/transformers/transformers.min.js'),
+          wasm_mjs_url: vendor('whisper_asr/transformers/ort-wasm-simd-threaded.asyncify.mjs'),
+          wasm_bin_url: vendor('whisper_asr/transformers/ort-wasm-simd-threaded.asyncify.wasm'),
+          models_url: vendor('whisper_asr/models/'),
+          window_seconds: windowSeconds, overlap_seconds: Math.min(0.5, windowSeconds / 4),
+          max_threads: maxThreads,
+        } },
+        { name: 'mt', type: 'extensions.nodes.TranslateOpus', worker: 'mt', configuration: {
+          transformers_url: vendor('translate_opus/transformers/transformers.min.js'),
+          wasm_mjs_url: vendor('translate_opus/transformers/ort-wasm-simd-threaded.asyncify.mjs'),
+          wasm_bin_url: vendor('translate_opus/transformers/ort-wasm-simd-threaded.asyncify.wasm'),
+          models_url: vendor('translate_opus/models/'),
+          model_id: MODEL_ID[targetLang], source_lang: 'en', target_lang: targetLang,
+          max_threads: maxThreads,
+        } },
+        { name: 'out', type: 'BrowserOutput', configuration: {} },
+      ],
+      links: [{ from: 'in', to: 'asr' }, { from: 'asr', to: 'mt' }, { from: 'mt', to: 'out' }],
+    },
+  };
+}
+
+const WORKLET = `registerProcessor('relay', class extends AudioWorkletProcessor {
+  process(inputs) { const c = inputs[0][0]; if (c) this.port.postMessage(c.slice()); return true; } });`;
+
+let jt, pipe, input, ctx, stream, pending = new Float32Array(0), nextSample = 0;
+let chunkSamples = 1600;
+
+function setControlsDisabled(disabled) {
+  for (const el of $('settings').elements) el.disabled = disabled;
+}
+
+$('start').onclick = async () => {
+  $('start').disabled = true;
+  setControlsDisabled(true);
+  chunkSamples = Math.max(1, Math.round(Number($('chunk-ms').value) / 1000 * RATE));
+  pending = new Float32Array(0);
+  nextSample = 0;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      audio: { channelCount: 1, echoCancellation: false, noiseSuppression: false },
+    });
+    log('loading juturna and the models (whisper + opus-mt)...');
+    jt = await Juturna.create({ workers: ['main', 'asr', 'mt'] });
+    pipe = await jt.pipeline(buildConfig());
+    input = pipe.input('in');
+    pipe.onError((e) => log('ERROR: ' + e.message));
+    pipe.output('out').on('message', onTranslation);
+    await pipe.start();
+
+    ctx = new AudioContext({ sampleRate: RATE });
+    await ctx.audioWorklet.addModule(
+      URL.createObjectURL(new Blob([WORKLET], { type: 'text/javascript' })),
+    );
+    const relay = new AudioWorkletNode(ctx, 'relay', { numberOfOutputs: 0 });
+    relay.port.onmessage = (e) => onBlock(e.data);
+    ctx.createMediaStreamSource(stream).connect(relay);
+    log('listening, speak in english...');
+    $('stop').disabled = false;
+  } catch (err) {
+    log('ERROR: ' + err);
+    $('start').disabled = false;
+    setControlsDisabled(false);
+  }
+};
+
+function onBlock(block) {
+  const merged = new Float32Array(pending.length + block.length);
+  merged.set(pending);
+  merged.set(block, pending.length);
+  let offset = 0;
+  while (merged.length - offset >= chunkSamples) {
+    // slice(), not subarray(): feed() transfers (zero-copy) the whole
+    // ArrayBuffer, so each chunk needs its own independent buffer.
+    const audio = merged.slice(offset, offset + chunkSamples);
+    offset += chunkSamples;
+    const start = nextSample / RATE;
+    nextSample += chunkSamples;
+    input.feed({
+      kind: 'audio',
+      payload: { audio, sampling_rate: RATE, channels: 1, start, end: nextSample / RATE },
+    });
+  }
+  pending = merged.slice(offset);
+}
+
+function onTranslation({ payload }) {
+  const line = document.createElement('p');
+  line.innerHTML = `<b>${payload.source_text}</b><br> > ${payload.text}`;
+  $('lines').appendChild(line);
+}
+
+$('stop').onclick = async () => {
+  $('stop').disabled = true;
+  stream.getTracks().forEach((t) => t.stop());
+  await ctx.close();
+  await pipe.stop();
+  await pipe.destroy();
+  jt.terminate();
+  log('stopped.');
+  $('start').disabled = false;
+  setControlsDisabled(false);
+};
+</script>
+</body></html>

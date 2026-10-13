@@ -1,0 +1,112 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>kroko streaming asr demo (JFK)</title></head>
+<body>
+<!--
+DIAGNOSTICO TEMPORANEO, non committare. Pipeline
+in -> transcriber_kroko_wasm -> out, con audio JFK reale, bypassando
+getUserMedia (permesso microfono non concedibile via automazione browser).
+-->
+<button id="run">avvia</button>
+<pre id="out">pronto</pre>
+<script type="module">
+import { Juturna } from '../src/juturna.js';
+
+const out = document.getElementById('out');
+const log = (s) => { out.textContent += '\n' + s; console.log(s); };
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const url = (path) => new URL(path, location.href).href;
+
+const JFK_URL =
+  'https://huggingface.co/datasets/Xenova/transformers.js-docs/resolve/main/jfk.wav';
+const SR = 16000;
+
+async function loadJfk() {
+  log('scarico ' + JFK_URL + ' ...');
+  const resp = await fetch(JFK_URL);
+  const buf = await resp.arrayBuffer();
+  const probeCtx = new OfflineAudioContext(1, 1, SR);
+  const decoded = await probeCtx.decodeAudioData(buf.slice(0));
+  let samples;
+  if (decoded.sampleRate === SR && decoded.numberOfChannels === 1) {
+    samples = decoded.getChannelData(0).slice();
+  } else {
+    const off = new OfflineAudioContext(1, Math.ceil(decoded.duration * SR), SR);
+    const src = off.createBufferSource();
+    src.buffer = decoded;
+    src.connect(off.destination);
+    src.start();
+    samples = (await off.startRendering()).getChannelData(0).slice();
+  }
+  log('jfk caricato: ' + (samples.length / SR).toFixed(2) + 's');
+  return samples;
+}
+
+async function run() {
+  const samples = await loadJfk();
+
+  const config = {
+    pipeline: {
+      name: 'ktest', id: 'ktest-1', folder: '/tmp/juturna/ktest', transport: 'browser',
+      nodes: [
+        { name: 'in', type: 'BrowserInput', configuration: {} },
+        { name: 'asr', type: 'extensions.nodes.TranscriberKrokoWasm', worker: 'asr',
+          configuration: {
+            asr_helper_url: url('../vendor/transcriber_kroko_wasm/sherpa-onnx-asr.js'),
+            wasm_main_url: url('../vendor/transcriber_kroko_wasm/sherpa-onnx-wasm-main-asr.js'),
+          } },
+        { name: 'out', type: 'BrowserOutput', configuration: {} },
+      ],
+      links: [{ from: 'in', to: 'asr' }, { from: 'asr', to: 'out' }],
+    },
+  };
+
+  log('avvio Juturna (2 Worker: main, asr)...');
+  const jt = await Juturna.create({ workers: ['main', 'asr'] });
+  const t0 = performance.now();
+  const pipe = await jt.pipeline(config);
+  log('pipeline pronta in ' + Math.round(performance.now() - t0) + 'ms');
+
+  pipe.output('out').on('message', (m) => {
+    log('[' + Math.round(performance.now() - t0) + 'ms] final=' + m.meta.final + ' text=' + JSON.stringify(m.payload.text));
+  });
+  pipe.onError((e) => log('!!! errore pipeline: ' + e.message));
+
+  const input = pipe.input('in');
+  await pipe.start();
+
+  // 100ms chunks, come farebbe un microfono reale a streaming continuo.
+  const chunkSamples = Math.round(SR * 0.1);
+  let sent = 0;
+  log('invio audio JFK a finestre da 100ms...');
+  while (sent < samples.length) {
+    const end = Math.min(sent + chunkSamples, samples.length);
+    input.feed({
+      kind: 'audio',
+      payload: {
+        audio: samples.slice(sent, end),
+        sampling_rate: SR, channels: 1, start: sent / SR, end: end / SR,
+      },
+      meta: {},
+    });
+    sent = end;
+    await sleep(30); // piu' veloce del tempo reale ma non tutto in un colpo
+  }
+  log('audio inviato per intero, attendo eventuali risultati residui...');
+  await sleep(5000);
+
+  const status = await pipe.status();
+  log('status finale: ' + JSON.stringify(status.nodes && Object.fromEntries(
+    Object.entries(status.nodes).map(([k, v]) => [k, v.health]),
+  )));
+
+  await pipe.stop();
+  await pipe.destroy();
+  jt.terminate();
+  log('\n=== FINE ===');
+}
+
+document.getElementById('run').onclick = () => run().catch((e) => log('eccezione: ' + (e && e.stack || e)));
+</script>
+</body>
+</html>

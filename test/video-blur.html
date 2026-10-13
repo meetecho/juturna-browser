@@ -1,0 +1,72 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>video blur pipeline test</title></head>
+<body><pre id="out">running...</pre>
+<script type="module">
+// The pipeline of examples/video-blur fed with synthetic 640x480 frames at
+// ?fps= (15), ?n= frames (75), at most ?inflight= (2) in flight; no camera. Build first: python3 build/build.py --juturna <checkout>
+//   --plugins examples/video-blur/plugins ; python3 build/vendor.py examples/video-blur/plugins
+import { Juturna } from '../src/juturna.js';
+
+window.__result = null;
+const query = new URLSearchParams(location.search);
+const W = 640, H = 480;
+const FPS = Number(query.get('fps') ?? 15), N = Number(query.get('n') ?? 75), MAX_IN_FLIGHT = Number(query.get('inflight') ?? 2);
+const url = (path) => new URL(path, location.href).href;
+const checks = {}, check = (n, ok, d) => { checks[n] = ok ? 'ok' : 'FAIL' + (d !== undefined ? ': ' + JSON.stringify(d) : ''); };
+const stats = (a) => { if (!a.length) return null; const s = [...a].sort((x, y) => x - y), q = (p) => s[Math.min(s.length - 1, Math.floor(p * s.length))];
+  return { n: s.length, p50: +q(0.5).toFixed(1), p95: +q(0.95).toFixed(1), max: +s[s.length - 1].toFixed(1) }; };
+const ticks = (everyMs, count, fn) => new Promise((resolve) => {     // a Worker timer: background tabs throttle setTimeout
+  const w = new Worker(URL.createObjectURL(new Blob([`setInterval(() => postMessage(0), ${everyMs});`], { type: 'text/javascript' })));
+  let n = 0; w.onmessage = () => { if (n++ < count) fn(n); else { w.terminate(); resolve(); } };
+});
+
+try {
+  const config = { pipeline: { name: 'blur', id: 'blur-1', folder: '/tmp/juturna/blur', transport: 'browser',
+    nodes: [
+      { name: 'in', type: 'BrowserInput', configuration: {} },
+      { name: 'mask', type: 'extensions.nodes.PersonMask', worker: 'ml', configuration: { ort_url: url('../vendor/person_mask/ort/ort.wasm.min.mjs'), wasm_path: url('../vendor/person_mask/ort/'), model_url: url('../vendor/person_mask/selfie.onnx') } },
+      { name: 'blur', type: 'extensions.nodes.BackgroundBlur', worker: 'cpu', configuration: {} },
+      { name: 'out', type: 'BrowserOutput', configuration: {} }],
+    links: [{ from: 'in', to: 'mask' }, { from: 'mask', to: 'blur' }, { from: 'blur', to: 'out' }] } };
+
+  const t0 = performance.now();
+  const jt = await Juturna.create({ ...(query.get('dist') ? { base: new URL(query.get('dist'), location.href) } : {}), workers: ['main', 'ml', 'cpu'] });
+  const pipe = await jt.pipeline(config);
+  const readyMs = Math.round(performance.now() - t0);
+  const errors = [], got = [];
+  pipe.onError((e) => errors.push(e.message));
+  let inFlight = 0, sent = 0, dropped = 0;
+  const lat = [], seg = [], blur = [], arrivals = [];
+  pipe.output('out').on('message', (m) => { inFlight--; const now = performance.now(); got.push(m); lat.push(now - m.meta.t); seg.push(m.meta.ms_segment); blur.push(m.meta.ms_blur); arrivals.push(now); });
+  const input = pipe.input('in');
+  await pipe.start();
+
+  // a frame with a bright "person" ellipse on a noisy background
+  const frame = () => { const px = new Uint8Array(W * H * 4); for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const i = (y * W + x) * 4;
+    const inside = ((x - 320) / 120) ** 2 + ((y - 240) / 180) ** 2 < 1; px[i] = inside ? 220 : (x * 7 + y * 3) & 255; px[i + 1] = inside ? 170 : (x ^ y) & 255; px[i + 2] = inside ? 150 : (x * y) & 255; px[i + 3] = 255; } return px; };
+  const base = frame();
+
+  await ticks(1000 / FPS, N, () => {
+    if (inFlight >= MAX_IN_FLIGHT) { dropped++; return; }
+    inFlight++;
+    input.feed({ kind: 'image', payload: { image: base.slice(), width: W, height: H, depth: 4, pixel_format: 'rgba', timestamp: sent }, meta: { t: performance.now(), i: sent++ } });
+  });
+  await ticks(100, 30, () => {});           // let the last frames come out
+  const seconds = (arrivals.at(-1) - arrivals[0]) / 1000;
+
+  check('frames_arrive', got.length >= 20, got.length);
+  const f = got[0] && got[0].payload;
+  check('output_shape', !!f && f.width === W && f.height === H && f.depth === 4 && f.image.length === W * H * 4 && f.image instanceof Uint8Array, f && [f.width, f.height, f.depth]);
+  check('alpha_is_opaque', !!f && f.image.every((v, i) => i % 4 !== 3 || v === 255));
+  check('stage_timings_present', got.every((m) => typeof m.meta.ms_segment === 'number' && typeof m.meta.ms_blur === 'number'));
+  check('order_preserved', got.every((m, k) => k === 0 || m.meta.i > got[k - 1].meta.i));
+  check('background_was_blurred', (() => { let d = 0, c = 0; for (let i = 0; i < 40 * 4; i += 4) { d += Math.abs(f.image[i] - base[i]); c++; } return d / c > 0; })());
+  check('no_errors', errors.length === 0, errors);
+  const st = await pipe.status();
+  check('nodes_no_failures', Object.values(st.nodes).every((n) => n.health.update_failures === 0 && n.health.worker_failures === 0), st.nodes);
+  await pipe.stop(); await pipe.destroy(); jt.terminate();
+  window.__result = { fps_in: FPS, max_in_flight: MAX_IN_FLIGHT, readyMs, sent, dropped, shown: got.length, fps_out: +((got.length - 1) / seconds).toFixed(1),
+    latency_ms: stats(lat), ms_segment: stats(seg), ms_blur: stats(blur), checks };
+} catch (e) { window.__result = { fatal: String(e && e.stack || e), checks }; }
+document.getElementById('out').textContent = JSON.stringify(window.__result, null, 1);
+</script></body></html>

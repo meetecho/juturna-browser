@@ -1,0 +1,10 @@
+[arguments]
+transformers_url = ""
+wasm_mjs_url = ""
+wasm_bin_url = ""
+models_url = ""
+model_id = "Xenova/opus-mt-en-it"
+source_lang = "en"
+target_lang = "it"
+
+[meta]

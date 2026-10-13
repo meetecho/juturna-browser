@@ -1,0 +1,12 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>local queue test</title></head>
+<body><pre id="out">running...</pre>
+<script type="module">
+// The queue that stays inside a Worker (juturna/transport/_browser.py): order,
+// backpressure, timeouts, close, and which queues are local or rings.
+window.__result = null;
+const w = new Worker('local-queue-worker.js?v=' + Date.now(), { type: 'module' });
+w.onmessage = ({ data }) => { window.__result = data; document.getElementById('out').textContent = JSON.stringify(data, null, 1); w.terminate(); };
+w.onerror = (e) => { window.__result = { fatal: e.message, checks: {} }; };
+w.postMessage({ dist: new URLSearchParams(location.search).get('dist') });
+</script></body></html>

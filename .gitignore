@@ -1,0 +1,4 @@
+dist/
+juturna-web-demo/
+__pycache__/
+vendor/

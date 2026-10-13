@@ -1,0 +1,11 @@
+[arguments]
+transformers_url = ""
+wasm_mjs_url = ""
+wasm_bin_url = ""
+models_url = ""
+model_id = "Xenova/whisper-base"
+language = "english"
+window_seconds = 4.0
+overlap_seconds = 0.5
+
+[meta]

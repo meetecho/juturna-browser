@@ -1,0 +1,59 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>ring repair test</title></head>
+<body><pre id="out">running...</pre>
+<script type="module">
+// A producer that dies after claiming a slot and before filling it leaves the
+// reader of the queue waiting for ever. Here the page plays that producer: it
+// claims a ticket on the queue of `burn` and never publishes it. Build with
+// --test-plugins first.
+import { Juturna } from '../src/juturna.js';
+import { repairRing } from '../src/ring.js';
+
+window.__result = null;
+const checks = {};
+const check = (n, ok, d) => { checks[n] = ok ? 'ok' : 'FAIL' + (d !== undefined ? ': ' + JSON.stringify(d) : ''); };
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const until = async (fn, ms) => { const t = performance.now(); while (performance.now() - t < ms) { if (fn()) return true; await sleep(100); } return fn(); };
+const config = { pipeline: { name: 'rr', id: 'rr-1', folder: '/tmp/juturna/rr', transport: 'browser',
+  nodes: [{ name: 'in', type: 'BrowserInput', configuration: {} },
+          { name: 'burn', type: 'extensions.nodes.Burn', worker: 'heavy', configuration: { burn_ms: 0 } },
+          { name: 'out', type: 'BrowserOutput', configuration: {} }],
+  links: [{ from: 'in', to: 'burn' }, { from: 'burn', to: 'out' }] } };
+const audio = (i) => ({ kind: 'audio', payload: { audio: new Float32Array(160), sampling_rate: 16000 }, meta: { i } });
+
+try {
+  const jt = await Juturna.create({ workers: ['main', 'heavy'] });
+  const pipe = await jt.pipeline(config);
+  const got = [];
+  pipe.output('out').on('message', (m) => got.push(m.meta.i));
+  const input = pipe.input('in');
+  await pipe.start();
+
+  for (let i = 0; i < 3; i++) input.feed(audio(i));
+  check('baseline_flows', await until(() => got.length === 3, 5000), got);
+
+  const handle = pipe._inboxHandle('burn');                 // the queue in front of `burn`
+  check('a_healthy_queue_needs_no_repair', (await repairRing(handle)) === 0);
+
+  // the dead producer: it claims the next ticket and is never heard of again
+  const cells = new Int32Array(handle.sab);
+  const head = Atomics.load(cells, 0);
+  const claimed = Atomics.compareExchange(cells, 0, head, (head + 1) | 0);
+  check('the_ticket_was_claimed', claimed === head);
+
+  for (let i = 3; i < 8; i++) input.feed(audio(i));
+  await sleep(1500);
+  check('the_reader_is_stuck_behind_the_claimed_slot', got.length === 3, got);
+
+  check('one_slot_is_repaired', (await repairRing(handle)) === 1);
+  check('the_messages_behind_it_get_through_in_order', await until(() => got.length === 8, 5000) && got.every((v, k) => v === k), got);
+
+  const status = await pipe.status();
+  check('nothing_failed_on_the_way', Object.values(status.nodes).every((n) => n.health.update_failures === 0 && n.health.worker_failures === 0), status.nodes);
+  input.feed(audio(8));
+  check('the_queue_keeps_working', await until(() => got.length === 9, 5000), got);
+  await pipe.stop(); await pipe.destroy(); jt.terminate();
+  window.__result = { checks };
+} catch (e) { window.__result = { fatal: String(e && e.stack || e), checks }; }
+document.getElementById('out').textContent = JSON.stringify(window.__result, null, 1);
+</script></body></html>

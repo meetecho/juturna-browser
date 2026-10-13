@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>juturna facade: microphone</title></head>
+<body>
+<button id="start">Start</button> <button id="image" disabled>Send test image</button>
+<button id="stop" disabled>Stop</button>
+<p>audio chunks: <b id="count">0</b> - rms: <b id="rms">-</b> - out of order: <b id="ooo">0</b>
+  <meter id="meter" min="0" max="0.5" value="0" style="width:300px"></meter></p>
+<p>image round trip: <b id="imgres">-</b> <canvas id="cv" width="64" height="48" style="vertical-align:middle;border:1px solid #888"></canvas></p>
+<pre id="log"></pre>
+<script type="module">
+import { Juturna } from '../src/juturna.js';
+
+const RATE = 16000, CHUNK = 1600;                    // 100 ms
+const $ = (id) => document.getElementById(id);
+const log = (m) => { $('log').textContent += m + '\n'; };
+
+const config = { pipeline: { name: 'mic', id: 'mic-1', folder: '/tmp/juturna/mic', transport: 'browser',
+  nodes: [{ name: 'in', type: 'BrowserInput', configuration: {} },
+          { name: 'out', type: 'BrowserOutput', configuration: {} }],
+  links: [{ from: 'in', to: 'out' }] } };
+
+// The page owns the capture: any AudioNode/MediaStream would do instead.
+const WORKLET = `registerProcessor('relay', class extends AudioWorkletProcessor {
+  process(inputs) { const c = inputs[0][0]; if (c) this.port.postMessage(c.slice()); return true; } });`;
+
+let jt, pipe, input, ctx, stream, pending = new Float32Array(0), nextSample = 0;
+let n = 0, ooo = 0, lastEnd = null, sentImage = null;
+
+$('start').onclick = async () => {
+  $('start').disabled = true;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: false, noiseSuppression: false } });
+    log('loading juturna...');
+    jt = await Juturna.create();
+    pipe = await jt.pipeline(config);
+    input = pipe.input('in');
+    pipe.onError((e) => log('ERROR: ' + e.message));
+    pipe.output('out').on('message', onOutput);
+    await pipe.start();
+
+    ctx = new AudioContext({ sampleRate: RATE });
+    await ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([WORKLET], { type: 'text/javascript' })));
+    const relay = new AudioWorkletNode(ctx, 'relay', { numberOfOutputs: 0 });
+    relay.port.onmessage = (e) => onBlock(e.data);
+    ctx.createMediaStreamSource(stream).connect(relay);
+    log('running, context rate ' + ctx.sampleRate + ' Hz');
+    $('image').disabled = false; $('stop').disabled = false;
+  } catch (err) { log('ERROR: ' + err); $('start').disabled = false; }
+};
+
+function onBlock(block) {
+  const merged = new Float32Array(pending.length + block.length);
+  merged.set(pending); merged.set(block, pending.length);
+  let offset = 0;
+  while (merged.length - offset >= CHUNK) {
+    const audio = merged.slice(offset, offset + CHUNK);
+    offset += CHUNK;
+    const start = nextSample / RATE; nextSample += CHUNK;
+    input.feed({ kind: 'audio', payload: { audio, sampling_rate: RATE, channels: 1, start, end: nextSample / RATE } });
+  }
+  pending = merged.slice(offset);
+}
+
+function onOutput({ kind, payload, meta }) {
+  if (kind === 'audio') {
+    n++;
+    let s = 0; for (const v of payload.audio) s += v * v;
+    const rms = Math.sqrt(s / payload.audio.length);
+    if (lastEnd !== null && Math.abs(payload.start - lastEnd) > 1e-6) $('ooo').textContent = ++ooo;
+    lastEnd = payload.end;
+    $('count').textContent = n; $('rms').textContent = rms.toFixed(4); $('meter').value = rms;
+  } else if (kind === 'image') {
+    const same = payload.image.every((v, i) => v === sentImage[i]);
+    $('imgres').textContent = same ? `PASS (${payload.width}x${payload.height}x${payload.depth}, meta ${JSON.stringify(meta)})` : 'FAIL';
+    $('cv').getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(payload.image), payload.width, payload.height), 0, 0);
+  }
+}
+
+$('image').onclick = () => {
+  const w = 64, h = 48, px = new Uint8Array(w * h * 4);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const i = (y * w + x) * 4; px[i] = x * 4; px[i + 1] = y * 5; px[i + 2] = 128; px[i + 3] = 255; }
+  sentImage = px.slice();
+  input.feed({ kind: 'image', payload: { image: px, width: w, height: h, depth: 4, pixel_format: 'rgba' }, meta: { tag: 'test-image' } });
+};
+
+$('stop').onclick = async () => {
+  $('stop').disabled = true; $('image').disabled = true;
+  stream.getTracks().forEach((t) => t.stop());
+  await ctx.close();
+  await pipe.stop();
+  log('status after stop: ' + JSON.stringify(await pipe.status()));
+  await pipe.destroy();
+  jt.terminate();
+  log('done');
+};
+</script>
+</body></html>

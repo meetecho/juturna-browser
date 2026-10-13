@@ -1,0 +1,79 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>denoise test</title></head>
+<body><pre id="out">running...</pre>
+<script type="module">
+// in -> denoise_dfn -> out, one Worker, audio at 48 kHz fed in chunks of any size.
+// Needs a bundle built with --plugins examples/noise-suppression/plugins and the
+// files of build/vendor.py examples/noise-suppression/plugins. ?dist=../dist_x/
+import { Juturna } from '../src/juturna.js';
+
+window.__result = null;
+const query = new URLSearchParams(location.search);
+const checks = {}, timings = {};
+const check = (n, ok, d) => { checks[n] = ok ? 'ok' : 'FAIL' + (d !== undefined ? ': ' + JSON.stringify(d) : ''); };
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const url = (path) => new URL(path, location.href).href;
+const SR = 48000;
+const config = { pipeline: { name: 'dn', id: 'dn-1', folder: '/tmp/juturna/dn', transport: 'browser',
+  nodes: [{ name: 'in', type: 'BrowserInput', configuration: {} },
+    { name: 'dn', type: 'extensions.nodes.DenoiseDFN', configuration: { ort_url: url('../vendor/denoise_dfn/ort/ort.wasm.min.mjs'),
+      wasm_path: url('../vendor/denoise_dfn/ort/'), model_url: url('../vendor/denoise_dfn/dfn3.onnx') } },
+    { name: 'out', type: 'BrowserOutput', configuration: {} }],
+  links: [{ from: 'in', to: 'dn' }, { from: 'dn', to: 'out' }] } };
+const rms = (a, from = 0) => { let s = 0; for (let i = from; i < a.length; i++) s += a[i] * a[i]; return Math.sqrt(s / (a.length - from)); };
+const noise = (n, amp) => Float32Array.from({ length: n }, () => (Math.random() * 2 - 1) * amp);
+const audio = (samples, start, meta) => ({ kind: 'audio', payload: { audio: samples, sampling_rate: SR, channels: 1, start }, meta });
+
+try {
+  const jt = await Juturna.create(query.get('dist') ? { base: new URL(query.get('dist'), location.href) } : {});
+  const t0 = performance.now();
+  const pipe = await jt.pipeline(config);
+  timings.pipeline_ready_ms = Math.round(performance.now() - t0);
+  const got = [], errors = [];
+  pipe.output('out').on('message', (m) => got.push(m));
+  pipe.onError((e) => errors.push(e.message));
+  const input = pipe.input('in');
+  await pipe.start();
+
+  // 1. chunks that are not a multiple of 480: nothing is lost or invented
+  const sizes = [100, 700, 480, 1000, 1, 479, 2400, 333];
+  let sent = 0, start = 0;
+  for (const [i, n] of sizes.entries()) { input.feed(audio(noise(n, 0.05), start / SR, { i })); sent += n; start += n; await sleep(30); }
+  await sleep(800);
+  const total = got.reduce((s, m) => s + m.payload.audio.length, 0);
+  check('output_is_whole_frames', got.every((m) => m.payload.audio.length % 480 === 0), got.map((m) => m.payload.audio.length));
+  check('no_sample_lost', total === Math.floor(sent / 480) * 480, { total, sent });
+  check('times_add_up', got.every((m) => Math.abs(m.payload.end - m.payload.start - m.payload.audio.length / SR) < 1e-6));
+  check('meta_passes_and_lsnr_added', got.every((m) => typeof m.meta.i === 'number' && Number.isFinite(m.meta.lsnr) && m.meta.ms_denoise >= 0), got.map((m) => m.meta));
+  check('sampling_rate_kept', got.every((m) => m.payload.sampling_rate === SR && m.payload.channels === 1));
+
+  // 2. the state is carried from a frame to the next: steady noise, at the tail of
+  // 4 s, must come out much quieter than it went in
+  got.length = 0;
+  const inRms = [];
+  const noiseAll = noise(SR * 4, 0.1);
+  for (let i = 0; i < noiseAll.length; i += 480) { input.feed(audio(noiseAll.slice(i, i + 480), i / SR, { i })); if (i % (480 * 20) === 0) await sleep(150); }
+  await sleep(1500);
+  const cleaned = Float32Array.from(got.flatMap((m) => [...m.payload.audio]));
+  const tail = cleaned.length - SR;
+  timings.noise_rms = { in: +rms(noiseAll, noiseAll.length - SR).toFixed(4), out: +rms(cleaned, tail).toFixed(4), out_samples: cleaned.length };
+  check('noise_is_attenuated_by_6db', cleaned.length > SR && rms(cleaned, tail) < rms(noiseAll, noiseAll.length - SR) / 2, timings.noise_rms);
+  timings.ms_denoise_p50 = (() => { const s = got.map((m) => m.meta.ms_denoise).sort((a, b) => a - b); return s[s.length >> 1]; })();
+  check('faster_than_real_time', timings.ms_denoise_p50 < 10, timings.ms_denoise_p50);
+
+  // 3. a wrong sampling rate is refused, and the node goes on
+  input.feed({ kind: 'audio', payload: { audio: noise(480, 0.05), sampling_rate: 16000, channels: 1 } });
+  await sleep(300);
+  const status = await pipe.status();
+  check('wrong_rate_refused', status.nodes.dn.health.update_failures >= 1, status.nodes.dn.health);
+  got.length = 0;
+  input.feed(audio(noise(480, 0.05), 0, { i: 'after' }));
+  await sleep(300);
+  check('node_goes_on_after_the_refusal', got.length === 1, got.length);
+  check('no_errors_from_feeding', errors.length === 0, errors);
+
+  await pipe.stop(); await pipe.destroy(); jt.terminate();
+} catch (e) { checks.fatal = String(e && e.stack || e); }
+window.__result = { timings, checks };
+document.getElementById('out').textContent = JSON.stringify(window.__result, null, 1);
+</script></body></html>

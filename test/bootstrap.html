@@ -1,0 +1,17 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>bundle bootstrap test</title></head>
+<body><pre id="out">running...</pre>
+<script>
+window.__result = null;
+const w = new Worker('bootstrap-worker.js?v=' + Date.now(), { type: 'module' });
+const res = { steps: {}, outputs: [] };
+w.onmessage = (e) => {
+  const d = e.data;
+  if (d.type === 'step') res.steps[d.name] = d.result;
+  else if (d.type === 'output') res.outputs.push({ kind: d.message.kind, meta: d.message.meta,
+    len: (d.message.payload.audio || d.message.payload.image || []).length });
+  else if (d.type === 'done') { window.__result = res; document.getElementById('out').textContent = JSON.stringify(res, null, 1); w.terminate(); }
+};
+w.onerror = (e) => { res.workerError = e.message; window.__result = res; };
+w.postMessage({});
+</script></body></html>

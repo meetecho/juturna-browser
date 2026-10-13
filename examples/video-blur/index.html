@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>juturna: background blur</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --bg: #0b0d10; --panel: #12151a; --line: #22262d; --text: #e6e8eb;
+    --muted: #9aa3ad; --accent: #6ee7c8; --accent2: #7aa2ff; --mono: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
+  }
+  a { color: var(--accent2); }
+  code { font-family: var(--mono); background: #1a1e24; padding: 0 5px; border-radius: 4px; font-size: .9em; }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 32px 24px 72px; }
+  .back { color: var(--muted); text-decoration: none; font-size: .88rem; }
+  .back:hover { color: var(--text); }
+  h1 { font-size: 1.5rem; margin: 14px 0 6px; }
+
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 20px 22px; margin-bottom: 20px; }
+  .panel h2 { margin: 0 0 16px; font-size: .8rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; font-weight: 600; }
+  .row { display: flex; gap: 20px; flex-wrap: wrap; }
+  label { display: flex; flex-direction: column; gap: 6px; font-size: .85rem; color: var(--muted); }
+  input[type="number"] {
+    background: #1a1e24; border: 1px solid var(--line); color: var(--text);
+    border-radius: 6px; padding: 7px 10px; font: inherit; font-family: var(--mono); font-size: .9rem;
+  }
+  input:disabled { opacity: .5; }
+
+  .actions { display: flex; gap: 10px; align-items: center; margin: 22px 0; }
+  .btn { padding: 10px 22px; border-radius: 8px; border: 1px solid var(--line); background: transparent;
+         color: var(--text); font-weight: 600; font-size: .92rem; cursor: pointer; font-family: inherit; }
+  .btn.primary { background: var(--accent); color: #04140f; border-color: var(--accent); }
+  .btn:disabled { opacity: .4; cursor: default; }
+
+  canvas { display: block; margin: 0 0 20px; border: 1px solid var(--line); border-radius: 10px; max-width: 100%; }
+  table { border-collapse: collapse; width: 100%; font-size: .9rem; margin-bottom: 16px; }
+  table th, table td { padding: 6px 14px 6px 0; text-align: left; font-variant-numeric: tabular-nums; }
+  table th { color: var(--muted); font-weight: 600; }
+  #log { font-family: var(--mono); background: #1a1e24; border: 1px solid var(--line); border-radius: 8px;
+         padding: 12px 14px; font-size: .82rem; color: var(--muted); white-space: pre-wrap; min-height: 1.2em; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="../../index.html">← demos</a>
+  <h1>Background blur - numpy compositing</h1>
+
+  <div class="panel">
+    <h2>Settings</h2>
+    <form id="settings">
+      <div class="row">
+        <label>max threads <span title="onnxruntime-web's WASM pool for person_mask. Empty = auto (min(4, cores/2)).">ⓘ</span>
+          <input id="max-threads" type="number" min="1" max="16" step="1" placeholder="auto" style="width:5em">
+        </label>
+      </div>
+    </form>
+  </div>
+
+  <div class="actions">
+    <button id="start" class="btn primary">Start</button>
+    <button id="stop" class="btn" disabled>Stop</button>
+  </div>
+
+  <canvas id="out"></canvas>
+  <table>
+    <tr><th>frames shown</th><td id="shown">0</td><th>fps</th><td id="fps">-</td></tr>
+    <tr><th>latency (capture  > canvas)</th><td id="lat">-</td><th>dropped</th><td id="dropped">0</td></tr>
+    <tr><th>segment (ms)</th><td id="seg">-</td><th>blur (ms)</th><td id="blur">-</td></tr>
+  </table>
+  <pre id="log"></pre>
+  <video id="cam" playsinline muted hidden></video>
+</div>
+<script type="module">
+import { Juturna } from '../../src/juturna.js';
+
+const query = new URLSearchParams(location.search);          // ?fps=24&inflight=3
+const W = Number(query.get('width') ?? 640), H = Number(query.get('height') ?? 480);   // ?width=1280&height=720
+const FPS = Number(query.get('fps') ?? 24), MAX_IN_FLIGHT = Number(query.get('inflight') ?? 3);
+const $ = (id) => document.getElementById(id);
+const log = (m) => { $('log').textContent += m + '\n'; };
+const url = (path) => new URL(path, location.href).href;
+
+if (query.has('maxThreads')) $('max-threads').value = query.get('maxThreads');
+
+function setControlsDisabled(disabled) {
+  for (const el of $('settings').elements) el.disabled = disabled;
+}
+
+// person_mask and background_blur: extra plugins of build.py, in their own Workers
+// a frame is W x H x 4 bytes: the slots of the queues must hold it
+function buildConfig() {
+  const maxThreadsRaw = $('max-threads').value;
+  const maxThreads = maxThreadsRaw !== '' ? Number(maxThreadsRaw) : null;
+  const transport = { name: 'browser', max_payload_bytes: Math.max(2000000, W * H * 4 + 4096) };
+
+  return { pipeline: { name: 'blur', id: 'blur-1', folder: '/tmp/juturna/blur', transport,
+    nodes: [
+      { name: 'in', type: 'BrowserInput', configuration: {} },
+      { name: 'mask', type: 'extensions.nodes.PersonMask', worker: 'ml',
+        configuration: { ort_url: url('../../vendor/person_mask/ort/ort.wasm.min.mjs'), wasm_path: url('../../vendor/person_mask/ort/'),
+                         model_url: url('../../vendor/person_mask/selfie.onnx'), max_threads: maxThreads } },
+      { name: 'blur', type: 'extensions.nodes.BackgroundBlur', worker: 'cpu', configuration: {} },
+      { name: 'out', type: 'BrowserOutput', configuration: {} },
+    ],
+    links: [{ from: 'in', to: 'mask' }, { from: 'mask', to: 'blur' }, { from: 'blur', to: 'out' }] } };
+}
+
+$('out').width = W; $('out').height = H;
+const ctx = $('out').getContext('2d');
+const grab = new OffscreenCanvas(W, H).getContext('2d', { willReadFrequently: true });
+let jt, pipe, input, stream, running = false, inFlight = 0, sent = 0, shown = 0, dropped = 0;
+const lat = [], seg = [], blur = [], arrivals = [];
+
+const median = (a) => { if (!a.length) return '-'; const s = [...a].sort((x, y) => x - y); return s[s.length >> 1].toFixed(1); };
+
+function onFrame() {
+  if (!running) return;
+  if (inFlight >= MAX_IN_FLIGHT) dropped++;
+  else {
+    grab.drawImage($('cam'), 0, 0, W, H);
+    const data = grab.getImageData(0, 0, W, H).data;
+    inFlight++;
+    input.feed({ kind: 'image', payload: { image: new Uint8Array(data.buffer), width: W, height: H, depth: 4, pixel_format: 'rgba', timestamp: sent },
+                 meta: { t: performance.now(), i: sent++ } });
+  }
+  $('cam').requestVideoFrameCallback(onFrame);
+}
+
+function onOutput({ payload, meta }) {
+  inFlight--;
+  ctx.putImageData(new ImageData(new Uint8ClampedArray(payload.image), payload.width, payload.height), 0, 0);
+  shown++;
+  const now = performance.now();
+  lat.push(now - meta.t); seg.push(meta.ms_segment); blur.push(meta.ms_blur); arrivals.push(now);
+  for (const a of [lat, seg, blur]) if (a.length > 60) a.shift();
+  while (arrivals.length && now - arrivals[0] > 2000) arrivals.shift();
+}
+
+setInterval(() => {
+  $('shown').textContent = shown; $('dropped').textContent = dropped;
+  $('fps').textContent = arrivals.length > 1 ? ((arrivals.length - 1) / ((arrivals.at(-1) - arrivals[0]) / 1000)).toFixed(1) : '-';
+  $('lat').textContent = median(lat) + ' ms'; $('seg').textContent = median(seg); $('blur').textContent = median(blur);
+}, 500);
+
+$('start').onclick = async () => {
+  $('start').disabled = true;
+  setControlsDisabled(true);
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { width: W, height: H, frameRate: FPS } });
+    log('loading juturna in 3 workers (main, ml, cpu)...');
+    const t0 = performance.now();
+    jt = await Juturna.create({ workers: ['main', 'ml', 'cpu'] });
+    pipe = await jt.pipeline(buildConfig());
+    pipe.onError((e) => log('ERROR: ' + e.message));
+    pipe.output('out').on('message', onOutput);
+    input = pipe.input('in');
+    await pipe.start();
+    log(`pipeline running (${Math.round(performance.now() - t0)} ms to get there)`);
+
+    $('cam').srcObject = stream;
+    await $('cam').play();
+    running = true;
+    $('cam').requestVideoFrameCallback(onFrame);
+    $('stop').disabled = false;
+  } catch (err) {
+    log('ERROR: ' + err);
+    $('start').disabled = false;
+    setControlsDisabled(false);
+  }
+};
+
+$('stop').onclick = async () => {
+  $('stop').disabled = true;
+  running = false;
+  stream.getTracks().forEach((t) => t.stop());
+  await pipe.stop();
+  log('status after stop: ' + JSON.stringify((await pipe.status()).workers));
+  await pipe.destroy();
+  jt.terminate();
+  log('done');
+  setControlsDisabled(false);
+};
+</script>
+</body></html>

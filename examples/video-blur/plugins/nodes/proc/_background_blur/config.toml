@@ -1,0 +1,6 @@
+[arguments]
+downscale = 4
+radius = 2
+passes = 3
+
+[meta]

@@ -1,0 +1,84 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>live translation test</title></head>
+<body><pre id="out">running...</pre>
+<script type="module">
+// in(main) -> asr(Worker "asr", whisper_asr) -> mt(Worker "mt", translate_opus, en->it) -> out(main)
+// Plumbing only: silence/noise proves nothing about transcription quality, only
+// that windows/overlap/text-passing/errors work. Needs a bundle built with
+// --plugins examples/live-translation/plugins, and
+// build/vendor.py examples/live-translation/plugins.
+import { Juturna } from '../src/juturna.js';
+
+window.__result = null;
+const query = new URLSearchParams(location.search);
+const checks = {}, timings = {};
+const check = (n, ok, d) => { checks[n] = ok ? 'ok' : 'FAIL' + (d !== undefined ? ': ' + JSON.stringify(d) : ''); };
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const url = (path) => new URL(path, location.href).href;
+const SR = 16000;
+const asrUrls = {
+  transformers_url: url('../vendor/whisper_asr/transformers/transformers.min.js'),
+  wasm_mjs_url: url('../vendor/whisper_asr/transformers/ort-wasm-simd-threaded.asyncify.mjs'),
+  wasm_bin_url: url('../vendor/whisper_asr/transformers/ort-wasm-simd-threaded.asyncify.wasm'),
+  models_url: url('../vendor/whisper_asr/models/'),
+};
+const mtUrls = {
+  transformers_url: url('../vendor/translate_opus/transformers/transformers.min.js'),
+  wasm_mjs_url: url('../vendor/translate_opus/transformers/ort-wasm-simd-threaded.asyncify.mjs'),
+  wasm_bin_url: url('../vendor/translate_opus/transformers/ort-wasm-simd-threaded.asyncify.wasm'),
+  models_url: url('../vendor/translate_opus/models/'),
+};
+const config = { pipeline: { name: 'lt', id: 'lt-1', folder: '/tmp/juturna/lt', transport: 'browser',
+  nodes: [
+    { name: 'in', type: 'BrowserInput', configuration: {} },
+    { name: 'asr', type: 'extensions.nodes.WhisperASR', worker: 'asr',
+      configuration: { ...asrUrls, window_seconds: 2.0, overlap_seconds: 0.3 } },
+    { name: 'mt', type: 'extensions.nodes.TranslateOpus', worker: 'mt',
+      configuration: { ...mtUrls, model_id: 'Xenova/opus-mt-en-it', source_lang: 'en', target_lang: 'it' } },
+    { name: 'out', type: 'BrowserOutput', configuration: {} },
+  ],
+  links: [{ from: 'in', to: 'asr' }, { from: 'asr', to: 'mt' }, { from: 'mt', to: 'out' }] } };
+
+const noise = (n, amp) => Float32Array.from({ length: n }, () => (Math.random() * 2 - 1) * amp);
+const audio = (samples, start) => ({ kind: 'audio', payload: { audio: samples, sampling_rate: SR, channels: 1, start }, meta: { t: performance.now() } });
+
+try {
+  const jt = await Juturna.create({ workers: ['main', 'asr', 'mt'] });
+  const t0 = performance.now();
+  const pipe = await jt.pipeline(config);
+  timings.pipeline_ready_ms = Math.round(performance.now() - t0);
+  const got = [], errors = [];
+  pipe.output('out').on('message', (m) => got.push(m));
+  pipe.onError((e) => errors.push(e.message));
+  const input = pipe.input('in');
+  await pipe.start();
+
+  // 1. plumbing: feed 5 s of quiet noise (unlikely to produce a transcript, but
+  // must not crash and must respect window/overlap accounting), then check status
+  let sent = 0;
+  for (let i = 0; i < 25; i++) { input.feed(audio(noise(4000, 0.01), sent / SR)); sent += 4000; await sleep(40); }
+  await sleep(4000);
+  const status = await pipe.status();
+  check('no_crash_on_quiet_audio', errors.length === 0, errors);
+  check('asr_node_healthy', status.nodes.asr.health.update_failures === 0, status.nodes.asr.health);
+  check('mt_node_untouched_by_silence', got.length === 0 || got.every((m) => m.payload.text), got.map((m) => m.payload));
+  timings.after_silence = { got: got.length, workers: status.workers };
+
+  // 2. a wrong sampling rate is refused by whisper_asr, and it keeps working
+  got.length = 0;
+  input.feed({ kind: 'audio', payload: { audio: noise(1600, 0.05), sampling_rate: 48000, channels: 1 } });
+  await sleep(500);
+  const status2 = await pipe.status();
+  check('wrong_rate_refused', status2.nodes.asr.health.update_failures >= 1, status2.nodes.asr.health);
+
+  // translate_opus's own refusal of an empty/missing text (ValueError in its
+  // update()) has no path to exercise from the facade: `feed()` only exists on
+  // browser_input, and whisper_asr never transmits an empty transcript (see its
+  // `if text:` guard), so translate_opus never legitimately sees one either.
+  // Left to code review, per the project's own test convention.
+
+  await pipe.stop(); await pipe.destroy(); jt.terminate();
+} catch (e) { checks.fatal = String(e && e.stack || e); }
+window.__result = { timings, checks };
+document.getElementById('out').textContent = JSON.stringify(window.__result, null, 1);
+</script></body></html>

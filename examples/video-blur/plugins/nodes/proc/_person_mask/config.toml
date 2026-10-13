@@ -1,0 +1,6 @@
+[arguments]
+ort_url = ""
+wasm_path = ""
+model_url = ""
+
+[meta]

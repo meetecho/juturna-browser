@@ -1,0 +1,72 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>supervisor test</title></head>
+<body><pre id="out">running...</pre>
+<script type="module">
+// in (main) -> crash (heavy) -> out (main). The `heavy` Worker vanishes after 10
+// messages while `in` keeps writing to it. With the rings of the lost Worker
+// closed (the default) `in` is not left waiting for room in them and the
+// pipeline can be stopped; with `poisonRings: false` it is, and it cannot.
+// Build with --test-plugins first.
+import { Juturna } from '../src/juturna.js';
+
+window.__result = null;
+const checks = {}, timings = {};
+const check = (n, ok, d) => { checks[n] = ok ? 'ok' : 'FAIL' + (d !== undefined ? ': ' + JSON.stringify(d) : ''); };
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const within = (promise, ms) => Promise.race([promise.then(() => true), new Promise((r) => setTimeout(() => r(false), ms))]);
+const config = { pipeline: { name: 'sv', id: 'sv-1', folder: '/tmp/juturna/sv', transport: 'browser',
+  nodes: [{ name: 'in', type: 'BrowserInput', configuration: {} },
+          { name: 'crash', type: 'extensions.nodes.Crash', worker: 'heavy', configuration: { after: 10 } },
+          { name: 'out', type: 'BrowserOutput', configuration: {} }],
+  links: [{ from: 'in', to: 'crash' }, { from: 'crash', to: 'out' }] } };
+
+async function scenario(poisonRings) {
+  const jt = await Juturna.create({ workers: ['main', 'heavy'], supervise: { pingMs: 200, timeoutMs: 1500, poisonRings } });
+  const pipe = await jt.pipeline(config);
+  const got = [], lost = [], errors = [];
+  pipe.output('out').on('message', (m) => got.push(m.meta.i));
+  pipe.onWorkerLost((e) => lost.push({ ...e, at: performance.now() }));
+  pipe.onError((e) => errors.push(e.message));
+  const input = pipe.input('in');
+  await pipe.start();
+  const t0 = performance.now();
+  for (let i = 0; i < 40; i++) input.feed({ kind: 'audio', payload: { audio: new Float32Array(160), sampling_rate: 16000 }, meta: { i } });
+  await sleep(3500);
+  const out = { got, lost, errors, t0, jt, pipe, input };
+  return out;
+}
+
+try {
+  {
+    const s = await scenario(true);
+    // close() lets the Worker finish what it is running, so a few more than 10 get out
+    check('frames_before_the_crash_arrive', s.got.length >= 10 && s.got.length < 40 && s.got.every((v, k) => v === k), s.got.length);
+    check('loss_is_reported_once', s.lost.length === 1 && s.lost[0].worker === 'heavy', s.lost.map((l) => l.worker));
+    timings.detected_after_ms = s.lost[0] && Math.round(s.lost[0].at - s.t0);
+    check('loss_detected_within_4s', s.lost[0] && s.lost[0].at - s.t0 < 4000, timings.detected_after_ms);
+    check('loss_reaches_onError', s.errors.some((e) => /Worker heavy was lost/.test(e)), s.errors);
+
+    const status = await s.pipe.status();
+    check('status_names_the_lost_worker', status.workers.heavy === 'lost' && /running/i.test(status.workers.main) && Object.keys(status.nodes).sort().join() === 'in,out', status);
+    let threw = null;
+    try { s.pipe.input('in').feed({ kind: 'audio', payload: { audio: new Float32Array(160), sampling_rate: 16000 }, meta: { i: 'x' } }); } catch (e) { threw = e.message; }
+    check('the_live_worker_still_takes_data', threw === null, threw);
+
+    const t1 = performance.now();
+    const stopped = await within(s.pipe.stop(), 10000);
+    timings.stop_ms = Math.round(performance.now() - t1);
+    check('stop_returns_with_a_lost_worker', stopped, timings.stop_ms);
+    check('destroy_returns', await within(s.pipe.destroy(), 10000));
+    s.jt.terminate();
+  }
+  {
+    const s = await scenario(false);
+    check('control_loss_is_still_detected', s.lost.length === 1, s.lost.length);
+    const stopped = await within(s.pipe.stop(), 8000);
+    check('control_stop_hangs_without_closing_the_rings', !stopped, stopped);
+    s.jt.terminate();
+  }
+  window.__result = { timings, checks };
+} catch (e) { window.__result = { fatal: String(e && e.stack || e), checks }; }
+document.getElementById('out').textContent = JSON.stringify(window.__result, null, 1);
+</script></body></html>

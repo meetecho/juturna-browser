@@ -1,0 +1,123 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>facade test</title></head>
+<body><pre id="out">running...</pre>
+<script type="module">
+import { Juturna } from '../src/juturna.js';
+
+const checks = {};
+const check = (name, ok, detail) => { checks[name] = ok ? 'ok' : 'FAIL' + (detail !== undefined ? ': ' + JSON.stringify(detail) : ''); };
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const throwsAsync = async (fn) => { try { await fn(); return null; } catch (e) { return e.message; } };
+const throws = (fn) => { try { fn(); return null; } catch (e) { return e.message; } };
+window.__result = null;
+
+try {
+  const config = { pipeline: { name: 'fc', id: 'fc-1', folder: '/tmp/juturna/fc', transport: 'browser',
+    nodes: [{ name: 'in', type: 'BrowserInput', configuration: {} },
+            { name: 'out', type: 'BrowserOutput', configuration: {} }],
+    links: [{ from: 'in', to: 'out' }] } };
+
+  const t0 = performance.now();
+  const jt = await Juturna.create();
+  check('create', true);
+  const createMs = Math.round(performance.now() - t0);
+
+  const pipe = await jt.pipeline(config);
+  const before = await pipe.status();
+  check('status_before_start', before.pipeline.includes('ready') || before.pipeline.includes('READY'), before.pipeline);
+
+  const got = [], errors = [];
+  let boom = true;
+  pipe.output('out').on('message', () => { if (boom) { boom = false; throw new Error('listener boom'); } });
+  pipe.output('out').on('message', (m) => got.push(m));
+  pipe.onError((e) => errors.push(e.message));
+  const inp = pipe.input('in');
+
+  check('input_of_output_node_throws', throws(() => pipe.input('out')) !== null);
+  check('output_of_input_node_throws', throws(() => pipe.output('in')) !== null);
+  check('unknown_node_throws', throws(() => pipe.input('nope')) !== null);
+  check('second_pipeline_rejected', (await throwsAsync(() => jt.pipeline(config))) !== null);
+
+  await pipe.start();
+  await sleep(1500);               // start() returned: does the pipeline keep running?
+  const running = await pipe.status();
+  check('status_running_after_start_returned', /running/i.test(running.pipeline), running.pipeline);
+  // Juturna 3: start() on a running pipeline is a no-op
+  check('start_twice_ignored', (await throwsAsync(() => pipe.start())) === null && /running/i.test((await pipe.status()).pipeline));
+
+  const audio0 = new Float32Array(1600).fill(0.5);
+  for (let i = 0; i < 20; i++) {
+    const audio = new Float32Array(1600).fill(i);
+    inp.feed({ kind: 'audio', payload: { audio, sampling_rate: 16000, channels: 1, start: i * 0.1, end: (i + 1) * 0.1 }, meta: { i } });
+    if (i === 0) check('buffer_transferred', audio.byteLength === 0, audio.byteLength);
+  }
+  const keep = new Float32Array(1600).fill(7);
+  inp.feed({ kind: 'audio', payload: { audio: keep, sampling_rate: 16000 }, meta: { i: 'copy' } }, { copy: true });
+  check('copy_option_keeps_buffer', keep.byteLength === 6400, keep.byteLength);
+  // a view over part of a larger buffer: the rest of the buffer stays usable
+  const big = new Float32Array(3200).fill(3);
+  inp.feed({ kind: 'audio', payload: { audio: big.subarray(0, 1600), sampling_rate: 16000 }, meta: { i: 'part' } });
+  check('partial_view_does_not_detach_the_buffer', big.byteLength === 12800, big.byteLength);
+  check('bad_pyodide_version_refused', (await throwsAsync(() => Juturna.create({ pyodide: '../evil' }))) !== null);
+
+  const px = Uint8Array.from({ length: 48 }, (_, i) => i * 5 % 256);
+  inp.feed({ kind: 'image', payload: { image: px.slice(), width: 4, height: 3, depth: 4, pixel_format: 'rgba' }, meta: { tag: 'img' } });
+  inp.feed({ kind: 'video', payload: {}, meta: {} });   // invalid on purpose
+  await sleep(2500);
+
+  const audios = got.filter((m) => m.kind === 'audio' && typeof m.meta.i === 'number');
+  check('audio_count', audios.length === 20, audios.length);
+  check('audio_order', audios.every((m, k) => m.meta.i === k), audios.map((m) => m.meta.i));
+  check('audio_values', audios.every((m) => m.payload.audio[0] === m.meta.i && m.payload.audio.length === 1600));
+  check('audio_typed_array', audios[0] && audios[0].payload.audio instanceof Float32Array);
+  check('audio_meta_and_rate', audios[3] && audios[3].payload.sampling_rate === 16000 && Math.abs(audios[3].payload.start - 0.3) < 1e-6);
+  const copyMsg = got.find((m) => m.meta.i === 'copy');
+  check('copy_message_delivered', !!copyMsg && copyMsg.payload.audio[0] === 7);
+  const img = got.find((m) => m.kind === 'image');
+  check('image_roundtrip', !!img && img.payload.image.every((v, k) => v === px[k]) && img.payload.width === 4 && img.meta.tag === 'img');
+  check('throwing_listener_reported_and_others_served', errors.some((e) => /listener boom/.test(e)) && got.length > 0, { errors, got: got.length });
+  check('invalid_kind_reported', errors.some((e) => /unknown message kind/.test(e)), errors);
+
+  // a port: the page plays the part of an AudioWorklet posting to it
+  const port = inp.port();
+  for (let i = 0; i < 5; i++) {
+    const audio = new Float32Array(800).fill(100 + i);
+    port.postMessage({ kind: 'audio', payload: { audio, sampling_rate: 8000, start: i, end: i + 1 }, meta: { p: i } }, [audio.buffer]);
+  }
+  await sleep(1500);
+  const viaPort = got.filter((m) => typeof m.meta.p === 'number');
+  check('port_delivered_in_order', viaPort.length === 5 && viaPort.every((m, k) => m.meta.p === k && m.payload.audio[0] === 100 + k && m.payload.audio instanceof Float32Array && m.payload.sampling_rate === 8000), viaPort.length);
+
+  // a real AudioWorklet holding a transferred port (context may be suspended)
+  let workletOk = 'skipped';
+  try {
+    const ctx = new AudioContext({ sampleRate: 16000 });
+    const src = `registerProcessor('p', class extends AudioWorkletProcessor {
+      constructor() { super(); this.port.onmessage = (e) => { const out = e.data.port; const audio = new Float32Array(160).fill(9);
+        out.postMessage({ kind: 'audio', payload: { audio, sampling_rate: 16000 }, meta: { w: 1 } }, [audio.buffer]); }; }
+      process() { return true; } });`;
+    await ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
+    const node = new AudioWorkletNode(ctx, 'p');
+    const wp = inp.port();
+    node.port.postMessage({ port: wp }, [wp]);
+    await sleep(1500);
+    workletOk = got.some((m) => m.meta.w === 1 && m.payload.audio[0] === 9 && m.payload.audio.length === 160);
+    workletOk = workletOk ? 'ok' : 'FAIL: no message from the worklet (context state ' + ctx.state + ')';
+    await ctx.close();
+  } catch (e) { workletOk = 'FAIL: ' + e; }
+  checks.worklet_holds_port = workletOk;
+
+  const health = await pipe.status();
+  check('nodes_no_failures', Object.values(health.nodes).every((n) => n.health.update_failures === 0 && n.health.source_failures === 0 && n.health.worker_failures === 0), health.nodes);
+
+  await pipe.stop();
+  const stopped = await pipe.status();
+  check('status_after_stop', /stopped/i.test(stopped.pipeline), stopped.pipeline);
+  await pipe.destroy();
+  jt.terminate();
+  window.__result = { createMs, checks };
+} catch (e) {
+  window.__result = { checks, fatal: String(e && e.stack || e) };
+}
+document.getElementById('out').textContent = JSON.stringify(window.__result, null, 1);
+</script></body></html>

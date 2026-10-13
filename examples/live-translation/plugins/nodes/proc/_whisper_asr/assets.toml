@@ -1,0 +1,71 @@
+# Third-party files whisper_asr loads at run time, fetched into vendor/ by
+# `python3 build/vendor.py`. `path` is relative to vendor/.
+
+# transformers.js: tokenizer, feature extraction and the generation loop for
+# Whisper, on top of onnxruntime-web. Apache-2.0.
+[[asset]]
+url = "https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.3.0/dist/transformers.min.js"
+path = "whisper_asr/transformers/transformers.min.js"
+sha256 = "1475fd440e9932ab206682ee42cb18f6097403e9ee77ea62084c592d0f83597d"
+license = "Apache-2.0"
+
+# onnxruntime-web, the exact dev build this version of transformers.js depends
+# on (its own package.json: "onnxruntime-web": "1.31.0-dev.20260914-8d85527a0").
+# Pinning the stable 1.22.0 already vendored for person_mask/denoise_dfn does
+# NOT work here: this build's JS glue only ships the ".asyncify" WASM variant,
+# absent from 1.22.0 (verified: pointing wasmPaths at 1.22.0 fails to fetch a
+# dynamically imported module, "no available backend found").
+[[asset]]
+url = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.31.0-dev.20260914-8d85527a0/dist/ort-wasm-simd-threaded.asyncify.mjs"
+path = "whisper_asr/transformers/ort-wasm-simd-threaded.asyncify.mjs"
+sha256 = "0966b6105cd936744498aa60df7a22cbd47af3374dbc64a9ab561c08a71e3611"
+license = "MIT"
+
+[[asset]]
+url = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.31.0-dev.20260914-8d85527a0/dist/ort-wasm-simd-threaded.asyncify.wasm"
+path = "whisper_asr/transformers/ort-wasm-simd-threaded.asyncify.wasm"
+sha256 = "49871f5a4409519797e127440868a6d1923339d9185907f301a5b2a1d90af082"
+license = "MIT"
+
+# Whisper base, multilingual, quantized (~76 MB), at a fixed commit.
+[[asset]]
+url = "https://huggingface.co/Xenova/whisper-base/resolve/64da57285918e20ea79ea5c88eed7197933abaa8/config.json"
+path = "whisper_asr/models/Xenova/whisper-base/config.json"
+sha256 = "d1d347fdb422e6347c2f843a90d375aa67ea3f4b3e20d2c3075f9a9f6243685b"
+license = "MIT"
+
+[[asset]]
+url = "https://huggingface.co/Xenova/whisper-base/resolve/64da57285918e20ea79ea5c88eed7197933abaa8/generation_config.json"
+path = "whisper_asr/models/Xenova/whisper-base/generation_config.json"
+sha256 = "3bba359e33fdd6dc1c10f71846a477d339b0242f462f70ea1dd73274caa38d05"
+license = "MIT"
+
+[[asset]]
+url = "https://huggingface.co/Xenova/whisper-base/resolve/64da57285918e20ea79ea5c88eed7197933abaa8/preprocessor_config.json"
+path = "whisper_asr/models/Xenova/whisper-base/preprocessor_config.json"
+sha256 = "a6a76d28c93edb273669eb9e0b0636a2bddbb1272c3261e47b7ca6dfdbac1b8d"
+license = "MIT"
+
+[[asset]]
+url = "https://huggingface.co/Xenova/whisper-base/resolve/64da57285918e20ea79ea5c88eed7197933abaa8/tokenizer.json"
+path = "whisper_asr/models/Xenova/whisper-base/tokenizer.json"
+sha256 = "27fc476bfe7f17299480be2273fc0608e4d5a99aba2ab5dec5374b4482d1a566"
+license = "MIT"
+
+[[asset]]
+url = "https://huggingface.co/Xenova/whisper-base/resolve/64da57285918e20ea79ea5c88eed7197933abaa8/tokenizer_config.json"
+path = "whisper_asr/models/Xenova/whisper-base/tokenizer_config.json"
+sha256 = "2a4c4281cf9f51ac6ccc406fdc711a087afe6530f671fa7b80953edc498275ce"
+license = "MIT"
+
+[[asset]]
+url = "https://huggingface.co/Xenova/whisper-base/resolve/64da57285918e20ea79ea5c88eed7197933abaa8/onnx/encoder_model_quantized.onnx"
+path = "whisper_asr/models/Xenova/whisper-base/onnx/encoder_model_quantized.onnx"
+sha256 = "3e345e977b55620a37c0c2b2af0644e019afdfad562dcf71eb929bb7274285f9"
+license = "MIT"
+
+[[asset]]
+url = "https://huggingface.co/Xenova/whisper-base/resolve/64da57285918e20ea79ea5c88eed7197933abaa8/onnx/decoder_model_merged_quantized.onnx"
+path = "whisper_asr/models/Xenova/whisper-base/onnx/decoder_model_merged_quantized.onnx"
+sha256 = "a6beb6baabb66f00b6a686d828c95ffca6146d51900cbad0266cad38f64cf861"
+license = "MIT"

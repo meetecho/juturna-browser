@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>juturna: live transcription - Kroko</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --bg: #0b0d10; --panel: #12151a; --line: #22262d; --text: #e6e8eb;
+    --muted: #9aa3ad; --accent: #6ee7c8; --accent2: #7aa2ff; --mono: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
+  }
+  a { color: var(--accent2); }
+  code { font-family: var(--mono); background: #1a1e24; padding: 0 5px; border-radius: 4px; font-size: .9em; }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 32px 24px 72px; }
+  .back { color: var(--muted); text-decoration: none; font-size: .88rem; }
+  .back:hover { color: var(--text); }
+  h1 { font-size: 1.5rem; margin: 14px 0 6px; }
+  p.attribution { color: var(--muted); font-size: .82rem; margin-top: 24px; }
+
+  .actions { display: flex; gap: 10px; align-items: center; margin: 22px 0; }
+  .btn { padding: 10px 22px; border-radius: 8px; border: 1px solid var(--line); background: transparent;
+         color: var(--text); font-weight: 600; font-size: .92rem; cursor: pointer; font-family: inherit; }
+  .btn.primary { background: var(--accent); color: #04140f; border-color: var(--accent); }
+  .btn:disabled { opacity: .4; cursor: default; }
+
+  #current p, #lines p { background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+             padding: 12px 16px; margin: 0 0 10px; }
+  #current p { border-color: var(--accent2); }
+  table { border-collapse: collapse; width: 100%; font-size: .9rem; margin: 8px 0 16px; }
+  table th, table td { padding: 6px 14px 6px 0; text-align: left; font-variant-numeric: tabular-nums; }
+  table th { color: var(--muted); font-weight: 600; }
+  #log { font-family: var(--mono); background: #1a1e24; border: 1px solid var(--line); border-radius: 8px;
+         padding: 12px 14px; font-size: .82rem; color: var(--muted); white-space: pre-wrap; min-height: 1.2em; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="../../index.html">← demos</a>
+  <h1>Live transcription - Kroko</h1>
+
+  <div class="actions">
+    <button id="start" class="btn primary">Start</button>
+    <button id="stop" class="btn" disabled>Stop</button>
+  </div>
+
+  <div id="current"></div>
+  <div id="lines"></div>
+  <table>
+    <tr><th>latency (mic  > transcript, ms)</th><td id="lat">-</td><th>transcribe (ms / chunk)</th><td id="ms">-</td></tr>
+  </table>
+  <pre id="log"></pre>
+  <p class="attribution">Speech model: Kroko streaming Zipformer (en) by
+    <a href="https://huggingface.co/Banafo/Kroko-ASR">Banafo</a>, CC BY-SA.</p>
+</div>
+<script type="module">
+import { Juturna } from '../../src/juturna.js';
+
+const RATE = 16000;
+const $ = (id) => document.getElementById(id);
+const log = (m) => { $('log').textContent += m + '\n'; };
+const url = (path) => new URL(path, location.href).href;
+const vendor = (path) => url('../../vendor/' + path);
+const median = (a) => { if (!a.length) return '-'; const s = [...a].sort((x, y) => x - y); return s[s.length >> 1].toFixed(1); };
+
+// No max-threads control: this sherpa-onnx-wasm build is single-threaded.
+function buildConfig() {
+  return {
+    pipeline: {
+      name: 'ltk', id: 'ltk-1', folder: '/tmp/juturna/ltk', transport: 'browser',
+      nodes: [
+        { name: 'in', type: 'BrowserInput', configuration: {} },
+        { name: 'asr', type: 'extensions.nodes.TranscriberKrokoWasm', worker: 'asr', configuration: {
+          asr_helper_url: vendor('transcriber_kroko_wasm/sherpa-onnx-asr.js'),
+          wasm_main_url: vendor('transcriber_kroko_wasm/sherpa-onnx-wasm-main-asr.js'),
+        } },
+        { name: 'out', type: 'BrowserOutput', configuration: {} },
+      ],
+      links: [{ from: 'in', to: 'asr' }, { from: 'asr', to: 'out' }],
+    },
+  };
+}
+
+// getUserMedia + AudioWorklet relay, 100ms chunks for smooth partials.
+const WORKLET = `registerProcessor('relay', class extends AudioWorkletProcessor {
+  process(inputs) { const c = inputs[0][0]; if (c) this.port.postMessage(c.slice()); return true; } });`;
+const CHUNK_SAMPLES = 1600; // 100ms at 16kHz
+
+let jt, pipe, input, ctx, stream, pending = new Float32Array(0), nextSample = 0;
+const lat = [], ms = [];
+
+$('start').onclick = async () => {
+  $('start').disabled = true;
+  pending = new Float32Array(0);
+  nextSample = 0;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      audio: { channelCount: 1, echoCancellation: false, noiseSuppression: false },
+    });
+    log('loading juturna and the Kroko streaming model...');
+    jt = await Juturna.create({ workers: ['main', 'asr'] });
+    pipe = await jt.pipeline(buildConfig());
+    input = pipe.input('in');
+    pipe.onError((e) => log('ERROR: ' + e.message));
+    pipe.output('out').on('message', onTranscript);
+    await pipe.start();
+
+    ctx = new AudioContext({ sampleRate: RATE });
+    await ctx.audioWorklet.addModule(
+      URL.createObjectURL(new Blob([WORKLET], { type: 'text/javascript' })),
+    );
+    const relay = new AudioWorkletNode(ctx, 'relay', { numberOfOutputs: 0 });
+    relay.port.onmessage = (e) => onBlock(e.data);
+    ctx.createMediaStreamSource(stream).connect(relay);
+    log('listening, speak in english...');
+    $('stop').disabled = false;
+  } catch (err) {
+    log('ERROR: ' + err);
+    $('start').disabled = false;
+  }
+};
+
+function onBlock(block) {
+  const merged = new Float32Array(pending.length + block.length);
+  merged.set(pending);
+  merged.set(block, pending.length);
+  let offset = 0;
+  while (merged.length - offset >= CHUNK_SAMPLES) {
+    // slice(), not subarray(): feed() transfers (zero-copy) the whole
+    // ArrayBuffer, so every chunk needs its own independent buffer.
+    const audio = merged.slice(offset, offset + CHUNK_SAMPLES);
+    offset += CHUNK_SAMPLES;
+    const start = nextSample / RATE;
+    nextSample += CHUNK_SAMPLES;
+    const t = performance.now();
+    input.feed({
+      kind: 'audio',
+      payload: { audio, sampling_rate: RATE, channels: 1, start, end: nextSample / RATE },
+      meta: { t },
+    });
+  }
+  pending = merged.slice(offset);
+}
+
+function onTranscript({ payload, meta }) {
+  const now = performance.now();
+  if (meta && typeof meta.t === 'number') lat.push(now - meta.t);
+  if (meta && typeof meta.ms_transcribe === 'number') ms.push(meta.ms_transcribe);
+  for (const a of [lat, ms]) if (a.length > 60) a.shift();
+  $('lat').textContent = median(lat); $('ms').textContent = median(ms);
+
+  if (meta && meta.final) {
+    const line = document.createElement('p');
+    line.textContent = payload.text;
+    $('lines').prepend(line);
+    $('current').innerHTML = '';
+  } else {
+    $('current').innerHTML = `<p>${payload.text}</p>`;
+  }
+}
+
+$('stop').onclick = async () => {
+  $('stop').disabled = true;
+  stream.getTracks().forEach((t) => t.stop());
+  await ctx.close();
+  await pipe.stop();
+  await pipe.destroy();
+  jt.terminate();
+  log('stopped.');
+  $('start').disabled = false;
+};
+</script>
+</body></html>

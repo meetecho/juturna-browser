@@ -1,0 +1,67 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>restart test</title></head>
+<body><pre id="out">running...</pre>
+<script type="module">
+// in (main) -> crash (heavy) -> out (main). The `heavy` Worker vanishes after 10
+// messages, is rebuilt, and works again; the second time it vanishes there is no
+// restart left. Build with --test-plugins first.
+import { Juturna } from '../src/juturna.js';
+
+window.__result = null;
+const checks = {}, timings = {};
+const check = (n, ok, d) => { checks[n] = ok ? 'ok' : 'FAIL' + (d !== undefined ? ': ' + JSON.stringify(d) : ''); };
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const until = async (fn, ms) => { const t = performance.now(); while (performance.now() - t < ms) { if (fn()) return true; await sleep(100); } return fn(); };
+const within = (promise, ms) => Promise.race([promise.then(() => true), new Promise((r) => setTimeout(() => r(false), ms))]);
+const config = { pipeline: { name: 'rs', id: 'rs-1', folder: '/tmp/juturna/rs', transport: 'browser',
+  nodes: [{ name: 'in', type: 'BrowserInput', configuration: {} },
+          { name: 'crash', type: 'extensions.nodes.Crash', worker: 'heavy', configuration: { after: 10 } },
+          { name: 'out', type: 'BrowserOutput', configuration: {} }],
+  links: [{ from: 'in', to: 'crash' }, { from: 'crash', to: 'out' }] } };
+const audio = (i) => ({ kind: 'audio', payload: { audio: new Float32Array(160), sampling_rate: 16000 }, meta: { i } });
+
+try {
+  const dist = new URLSearchParams(location.search).get('dist');   // e.g. ../dist_old/ to test another build
+  const jt = await Juturna.create({ ...(dist ? { base: new URL(dist, location.href) } : {}), workers: ['main', 'heavy'], supervise: { pingMs: 200, timeoutMs: 1500, restart: { maxRestarts: 1, delayMs: 200 } } });
+  const pipe = await jt.pipeline(config);
+  const got = [], lost = [], restarted = [], errors = [];
+  pipe.output('out').on('message', (m) => got.push(m.meta.i));
+  pipe.onWorkerLost((e) => lost.push({ ...e, at: performance.now() }));
+  pipe.onWorkerRestarted((e) => restarted.push({ ...e, at: performance.now() }));
+  pipe.onError((e) => errors.push(e.message));
+  const input = pipe.input('in');
+  await pipe.start();
+
+  // first life: it vanishes after 10 messages
+  for (let i = 0; i < 40; i++) input.feed(audio(i));
+  check('first_loss_says_it_will_restart', await until(() => lost.length === 1, 6000) && lost[0].worker === 'heavy' && lost[0].willRestart === true, lost);
+  const during = await pipe.status();
+  check('status_says_restarting', during.workers.heavy === 'restarting' || during.workers.heavy === 'pipeline_running', during.workers);
+  check('restart_completes', await until(() => restarted.length === 1, 20000), restarted);
+  timings.lost_to_restarted_ms = restarted[0] && Math.round(restarted[0].at - lost[0].at);
+  check('restart_reports_the_attempt', restarted[0] && restarted[0].worker === 'heavy' && restarted[0].attempt === 1, restarted);
+
+  const after = await pipe.status();
+  check('worker_runs_again', /running/i.test(after.workers.heavy) && Object.keys(after.nodes).sort().join() === 'crash,in,out' && Object.keys(after.lost).length === 0, after);
+
+  // second life: a new node, new queues: what is fed now must get through
+  got.length = 0;
+  await sleep(500);
+  for (let i = 0; i < 5; i++) input.feed(audio(`after-${i}`));
+  check('messages_after_the_restart_reach_out', await until(() => got.length === 5, 8000) && got.every((v, k) => v === `after-${k}`), got);
+  check('the_input_handle_survived', true);
+
+  // the same Worker vanishes again: no restart left
+  for (let i = 0; i < 40; i++) input.feed(audio(`again-${i}`));
+  check('second_loss_is_final', await until(() => lost.length === 2 && lost[1].willRestart === false, 10000), lost);
+  await sleep(1500);
+  check('no_second_restart', restarted.length === 1, restarted.length);
+  const final = await pipe.status();
+  check('status_says_lost', final.workers.heavy === 'lost' && /running/i.test(final.workers.main), final.workers);
+  check('stop_returns', await within(pipe.stop(), 12000));
+  check('destroy_returns', await within(pipe.destroy(), 12000));
+  jt.terminate();
+  window.__result = { timings, checks };
+} catch (e) { window.__result = { fatal: String(e && e.stack || e), checks }; }
+document.getElementById('out').textContent = JSON.stringify(window.__result, null, 1);
+</script></body></html>

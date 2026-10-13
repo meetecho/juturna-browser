@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>juturna: noise suppression</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --bg: #0b0d10; --panel: #12151a; --line: #22262d; --text: #e6e8eb;
+    --muted: #9aa3ad; --accent: #6ee7c8; --accent2: #7aa2ff; --mono: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
+  }
+  a { color: var(--accent2); }
+  code { font-family: var(--mono); background: #1a1e24; padding: 0 5px; border-radius: 4px; font-size: .9em; }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 32px 24px 72px; }
+  .back { color: var(--muted); text-decoration: none; font-size: .88rem; }
+  .back:hover { color: var(--text); }
+  h1 { font-size: 1.5rem; margin: 14px 0 6px; }
+
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 20px 22px; margin-bottom: 20px; }
+  .panel h2 { margin: 0 0 16px; font-size: .8rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; font-weight: 600; }
+  .row { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-end; }
+  label { display: flex; flex-direction: column; gap: 6px; font-size: .85rem; color: var(--muted); }
+  label.inline { flex-direction: row; align-items: center; gap: 8px; }
+  input[type="number"] {
+    background: #1a1e24; border: 1px solid var(--line); color: var(--text);
+    border-radius: 6px; padding: 7px 10px; font: inherit; font-family: var(--mono); font-size: .9rem;
+  }
+  input:disabled { opacity: .5; }
+
+  .actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .btn { padding: 10px 22px; border-radius: 8px; border: 1px solid var(--line); background: transparent;
+         color: var(--text); font-weight: 600; font-size: .92rem; cursor: pointer; font-family: inherit; }
+  .btn.primary { background: var(--accent); color: #04140f; border-color: var(--accent); }
+  .btn:disabled { opacity: .4; cursor: default; }
+  .info { color: var(--muted); font-size: .85rem; }
+
+  table { border-collapse: collapse; width: 100%; font-size: .9rem; margin: 20px 0 16px; }
+  table th, table td { padding: 6px 14px 6px 0; text-align: left; font-variant-numeric: tabular-nums; }
+  table th { color: var(--muted); font-weight: 600; }
+  #log { font-family: var(--mono); background: #1a1e24; border: 1px solid var(--line); border-radius: 8px;
+         padding: 12px 14px; font-size: .82rem; color: var(--muted); white-space: pre-wrap; min-height: 1.2em; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="../../index.html">← demos</a>
+  <h1>Noise suppression</h1>
+
+  <div class="panel">
+    <h2>Settings</h2>
+    <form id="settings">
+      <div class="row">
+        <label>max threads <span title="onnxruntime-web's WASM pool for denoise_dfn. Empty = auto (min(4, cores/2)).">ⓘ</span>
+          <input id="max-threads" type="number" min="1" max="16" step="1" placeholder="auto" style="width:5em">
+        </label>
+      </div>
+    </form>
+  </div>
+
+  <div class="panel">
+    <h2>Session</h2>
+    <div class="actions">
+      <button id="start" class="btn primary">Start</button>
+      <button id="stop" class="btn" disabled>Stop</button>
+      <label class="inline"><input type="checkbox" id="monitor"> hear the cleaned audio live (use headphones)</label>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Recording</h2>
+    <div class="actions">
+      <button id="rec" class="btn" disabled>Record</button>
+      <button id="rec-stop" class="btn" disabled>Stop recording</button>
+      <button id="play-raw" class="btn" disabled>Play original</button>
+      <button id="play-clean" class="btn" disabled>Play cleaned</button>
+      <span id="rec-info" class="info"></span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Reprocess (a new attenuation, on the original recording)</h2>
+    <div class="actions">
+      <label>attenuation (dB)
+        <input id="reproc-attenuation" type="number" min="0" max="100" step="1" value="100" style="width:5em">
+      </label>
+      <button id="reprocess" class="btn" disabled>Reprocess</button>
+      <button id="play-reprocessed" class="btn" disabled>Play reprocessed</button>
+      <span id="reproc-info" class="info"></span>
+    </div>
+  </div>
+
+  <table>
+    <tr><th>input level (dBFS)</th><td id="in-db">-</td><th>output level (dBFS)</th><td id="out-db">-</td></tr>
+    <tr><th>latency (mic  > page, ms)</th><td id="lat">-</td><th>denoise (ms / message)</th><td id="ms">-</td></tr>
+    <tr><th>local SNR (dB, model)</th><td id="lsnr">-</td><th>blocks in / out</th><td id="count">0 / 0</td></tr>
+  </table>
+  <pre id="log"></pre>
+</div>
+<script type="module">
+import { Juturna } from '../../src/juturna.js';
+
+// ?synthetic=1: a voice-like tone with steady noise instead of the microphone
+// (to try the page where there is none). ?attenuation=12: let some noise through.
+const query = new URLSearchParams(location.search);
+const SYNTHETIC = query.has('synthetic');
+const SR = 48000;
+const $ = (id) => document.getElementById(id);
+const log = (m) => { $('log').textContent += m + '\n'; };
+const url = (path) => new URL(path, location.href).href;
+const db = (rms) => (rms > 1e-6 ? (20 * Math.log10(rms)).toFixed(1) : '-inf');
+const rms = (a) => { let s = 0; for (const v of a) s += v * v; return Math.sqrt(s / a.length); };
+const median = (a) => { if (!a.length) return '-'; const s = [...a].sort((x, y) => x - y); return s[s.length >> 1].toFixed(1); };
+
+if (query.has('maxThreads')) $('max-threads').value = query.get('maxThreads');
+
+function setControlsDisabled(disabled) {
+  for (const el of $('settings').elements) el.disabled = disabled;
+}
+
+// attenuation_db can't change on a running node (see below), hence a
+// function instead of one fixed config object.
+function buildConfig(attenuationDb) {
+  const maxThreadsRaw = $('max-threads').value;
+  const maxThreads = maxThreadsRaw !== '' ? Number(maxThreadsRaw) : null;
+
+  return { pipeline: { name: 'denoise', id: 'denoise-1', folder: '/tmp/juturna/denoise', transport: 'browser',
+    nodes: [
+      { name: 'in', type: 'BrowserInput', configuration: {} },
+      { name: 'dn', type: 'extensions.nodes.DenoiseDFN',
+        configuration: { ort_url: url('../../vendor/denoise_dfn/ort/ort.wasm.min.mjs'), wasm_path: url('../../vendor/denoise_dfn/ort/'),
+                         model_url: url('../../vendor/denoise_dfn/dfn3.onnx'), attenuation_db: attenuationDb, max_threads: maxThreads } },
+      { name: 'out', type: 'BrowserOutput', configuration: {} },
+    ],
+    links: [{ from: 'in', to: 'dn' }, { from: 'dn', to: 'out' }] } };
+}
+
+let ctx, jt, pipe, capture, stream, source;
+let recording = false, rawChunks = [], cleanChunks = [], reprocessedChunks = [];
+let blocksIn = 0, blocksOut = 0, nextPlay = 0;
+const lat = [], ms = [];
+let playing = null;
+
+function synthetic(context) {
+  const seconds = 4, n = SR * seconds, buffer = context.createBuffer(1, n, SR), data = buffer.getChannelData(0);
+  for (let i = 0; i < n; i++) {
+    const t = i / SR, envelope = Math.max(0, Math.sin(2 * Math.PI * 2.5 * t));
+    let voice = 0;
+    for (let h = 1; h <= 8; h++) voice += Math.sin(2 * Math.PI * 140 * h * t) / h;
+    data[i] = 0.12 * envelope * voice + (Math.random() * 2 - 1) * 0.05;
+  }
+  const node = context.createBufferSource();
+  node.buffer = buffer; node.loop = true; node.start();
+  return node;
+}
+
+// cleaned blocks come out at the pace of the pipeline: queue them a little
+// ahead of the clock so that the jitter is not heard
+function monitor(samples) {
+  const buffer = ctx.createBuffer(1, samples.length, SR);
+  buffer.copyToChannel(samples, 0);
+  const node = ctx.createBufferSource();
+  node.buffer = buffer; node.connect(ctx.destination);
+  if (nextPlay < ctx.currentTime) nextPlay = ctx.currentTime + 0.06;
+  node.start(nextPlay);
+  nextPlay += samples.length / SR;
+}
+
+function onCleaned(message) {
+  const audio = message.payload.audio;
+  blocksOut += audio.length / 480;
+  lat.push((ctx.currentTime - message.meta.t) * 1000);
+  ms.push(message.meta.ms_denoise);
+  if (lat.length > 200) { lat.shift(); ms.shift(); }
+  if (recording) cleanChunks.push(audio.slice());
+  if ($('monitor').checked) monitor(audio);
+  $('out-db').textContent = db(rms(audio));
+  $('lsnr').textContent = message.meta.lsnr.toFixed(1);
+}
+
+function onRaw(block) {
+  blocksIn++;
+  if (recording) rawChunks.push(block);
+  if (blocksIn % 10 === 0) $('in-db').textContent = db(rms(block));
+}
+
+setInterval(() => {
+  if (!pipe) return;
+  $('lat').textContent = median(lat); $('ms').textContent = median(ms);
+  $('count').textContent = `${blocksIn} / ${blocksOut}`;
+}, 250);
+
+$('start').onclick = async () => {
+  $('start').disabled = true;
+  setControlsDisabled(true);
+  try {
+    await ctx?.close();      // a previous session's context: play() still needs a live one
+    ctx = new AudioContext({ sampleRate: SR, latencyHint: 'interactive' });
+    await ctx.audioWorklet.addModule(new URL('./capture-worklet.js', import.meta.url));
+    log('loading Pyodide, Juturna and the model...');
+    jt = await Juturna.create();
+    pipe = await jt.pipeline(buildConfig(Number(query.get('attenuation') ?? 100)));
+    pipe.output('out').on('message', onCleaned);
+    pipe.onError((e) => log('error: ' + e.message));
+    await pipe.start();
+
+    if (SYNTHETIC) source = synthetic(ctx);
+    else {
+      // the browser's own processing off: what is heard is the effect of the model
+      stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+      source = ctx.createMediaStreamSource(stream);
+    }
+    capture = new AudioWorkletNode(ctx, 'capture', { numberOfInputs: 1, numberOfOutputs: 1 });
+    capture.port.onmessage = ({ data }) => onRaw(data);
+    const port = pipe.input('in').port();
+    capture.port.postMessage({ pipeline: port }, [port]);
+    const silent = ctx.createGain(); silent.gain.value = 0;      // keeps the worklet pulled by the graph
+    source.connect(capture); capture.connect(silent); silent.connect(ctx.destination);
+
+    log(`running (${SYNTHETIC ? 'synthetic input' : 'microphone'}, ${ctx.sampleRate} Hz)`);
+    $('stop').disabled = false; $('rec').disabled = false;
+  } catch (e) { log('failed: ' + (e && e.message || e)); $('start').disabled = false; setControlsDisabled(false); }
+};
+
+$('stop').onclick = async () => {
+  $('stop').disabled = $('rec').disabled = $('rec-stop').disabled = true;
+  source.disconnect(); capture.disconnect();
+  stream?.getTracks().forEach((t) => t.stop());
+  log('stopping...');
+  await pipe.stop(); await pipe.destroy(); jt.terminate();
+  // ctx stays open: play-raw/play-clean use it, and closing it would leave
+  // them wired to a dead context, unresponsive on click
+  pipe = null; log('stopped'); $('start').disabled = false; setControlsDisabled(false);
+};
+
+$('rec').onclick = () => {
+  rawChunks = []; cleanChunks = []; recording = true;
+  $('rec').disabled = true; $('rec-stop').disabled = false; $('play-raw').disabled = $('play-clean').disabled = true;
+  $('rec-info').textContent = 'recording...';
+};
+
+$('rec-stop').onclick = async () => {
+  recording = false;
+  $('rec-stop').disabled = true;
+  await new Promise((r) => setTimeout(r, 300));       // what the pipeline still holds
+  const seconds = (chunks) => (chunks.reduce((s, c) => s + c.length, 0) / SR).toFixed(2);
+  $('rec-info').textContent = `original ${seconds(rawChunks)} s, cleaned ${seconds(cleanChunks)} s`;
+  $('rec').disabled = false; $('play-raw').disabled = $('play-clean').disabled = false;
+  $('reprocess').disabled = rawChunks.length === 0;
+};
+
+function play(chunks) {
+  playing?.stop();
+  const samples = new Float32Array(chunks.reduce((s, c) => s + c.length, 0));
+  let at = 0; for (const c of chunks) { samples.set(c, at); at += c.length; }
+  const buffer = ctx.createBuffer(1, samples.length, SR);
+  buffer.copyToChannel(samples, 0);
+  playing = ctx.createBufferSource();
+  playing.buffer = buffer; playing.connect(ctx.destination); playing.start();
+}
+$('play-raw').onclick = () => play(rawChunks);
+$('play-clean').onclick = () => play(cleanChunks);
+$('play-reprocessed').onclick = () => play(reprocessedChunks);
+
+// attenuation_db is baked into denoise_dfn's model state at warmup(), so
+// changing it needs a new node instance: a disposable pipeline/Worker
+// per attempt, fed the already-recorded raw audio.
+$('reprocess').onclick = async () => {
+  if (!rawChunks.length) return;
+
+  $('reprocess').disabled = true;
+  $('reproc-info').textContent = 'reprocessing...';
+  const attenuationDb = Number($('reproc-attenuation').value) || 100;
+
+  const jt2 = await Juturna.create();
+  const pipe2 = await jt2.pipeline(buildConfig(attenuationDb));
+  reprocessedChunks = [];
+  pipe2.onError((e) => log('reprocess error: ' + e.message));
+  pipe2.output('out').on('message', (m) => reprocessedChunks.push(m.payload.audio.slice()));
+  const input2 = pipe2.input('in');
+  await pipe2.start();
+
+  let at = 0;
+  for (const chunk of rawChunks) {
+    const start = at / SR;
+    at += chunk.length;
+    input2.feed({ kind: 'audio', payload: { audio: chunk.slice(), sampling_rate: SR, channels: 1, start, end: at / SR } });
+  }
+  await new Promise((r) => setTimeout(r, 300));       // what the pipeline still holds
+
+  await pipe2.stop(); await pipe2.destroy(); jt2.terminate();
+  const seconds = (chunks) => (chunks.reduce((s, c) => s + c.length, 0) / SR).toFixed(2);
+  $('reproc-info').textContent = `attenuation ${attenuationDb} dB, ${seconds(reprocessedChunks)} s`;
+  $('reprocess').disabled = false;
+  $('play-reprocessed').disabled = false;
+};
+
+window.__demo = { get state() { return { blocksIn, blocksOut, lat: median(lat), ms: median(ms), raw: rawChunks.length, clean: cleanChunks.length, reprocessed: reprocessedChunks.length, playing: !!playing }; } };
+</script>
+</body></html>

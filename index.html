@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>juturna-browser - real pipelines, in the browser tab</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --bg: #0b0d10; --panel: #12151a; --line: #22262d; --text: #e6e8eb;
+    --muted: #9aa3ad; --accent: #6ee7c8; --accent2: #7aa2ff; --mono: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
+  }
+  a { color: var(--accent2); }
+  code { font-family: var(--mono); background: #1a1e24; padding: 0 5px; border-radius: 4px; font-size: .9em; }
+  pre { font-family: var(--mono); background: #1a1e24; border: 1px solid var(--line); border-radius: 8px;
+        padding: 14px 16px; overflow-x: auto; font-size: .88em; }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 0 24px; }
+
+  header.hero { padding: 88px 0 64px; text-align: center; border-bottom: 1px solid var(--line); }
+  header.hero h1 { font-size: clamp(2.1rem, 4.4vw, 3.2rem); margin: 0 0 18px; line-height: 1.15; }
+  header.hero h1 .accent { color: var(--accent); }
+  header.hero p.lede { font-size: 1.2rem; color: var(--muted); max-width: 640px; margin: 0 auto 34px; }
+  .cta { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+  .btn { display: inline-block; padding: 12px 22px; border-radius: 8px; text-decoration: none; font-weight: 600; }
+  .btn.primary { background: var(--accent); color: #04140f; }
+  .btn.ghost { border: 1px solid var(--line); color: var(--text); }
+
+  section { padding: 64px 0; border-bottom: 1px solid var(--line); }
+  section h2 { font-size: 1.6rem; margin: 0 0 8px; }
+  section p.section-lede { color: var(--muted); margin: 0 0 36px; max-width: 640px; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+  .stat { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px; }
+  .stat .num { font-size: 1.8rem; font-weight: 700; color: var(--accent); font-family: var(--mono); }
+  .stat .lbl { color: var(--muted); font-size: .92rem; margin-top: 4px; }
+  .stat .ctx { color: var(--muted); font-size: .8rem; margin-top: 8px; }
+
+  .demos { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px; }
+  .demo { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 22px; display: flex; flex-direction: column; }
+  .demo h3 { margin: 0 0 8px; font-size: 1.15rem; }
+  .demo p { color: var(--muted); margin: 0 0 16px; flex-grow: 1; font-size: .95rem; }
+  .demo .links { display: flex; gap: 10px; flex-wrap: wrap; }
+  .demo .links a { font-size: .9rem; font-weight: 600; }
+  .tag { display: inline-block; font-size: .72rem; font-family: var(--mono); color: var(--accent2);
+         border: 1px solid var(--line); border-radius: 999px; padding: 2px 9px; margin: 0 6px 6px 0; }
+
+  table.compare { width: 100%; border-collapse: collapse; font-size: .92rem; }
+  table.compare th, table.compare td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+  table.compare th { color: var(--muted); font-weight: 600; }
+  table.compare td.win { color: var(--accent); font-weight: 600; }
+
+  .steps { counter-reset: step; list-style: none; padding: 0; margin: 0; }
+  .steps li { counter-increment: step; position: relative; padding-left: 40px; margin-bottom: 18px; }
+  .steps li::before { content: counter(step); position: absolute; left: 0; top: 0; width: 26px; height: 26px;
+    border-radius: 50%; background: var(--panel); border: 1px solid var(--line); color: var(--accent);
+    font-family: var(--mono); font-size: .85rem; display: flex; align-items: center; justify-content: center; }
+
+  footer { padding: 40px 0 60px; text-align: center; color: var(--muted); font-size: .88rem; }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <h1>Run a real <span class="accent">Juturna</span> pipeline<br>in a browser tab</h1>
+    <p class="lede">The same JSON pipeline you deploy on a server - ASR, translation,
+      segmentation, denoising - running with Pyodide and WASM, entirely on the visitor's
+      device. No server round trip, no data leaving the tab.</p>
+    <div class="cta">
+      <a class="btn primary" href="#demos">Try a demo</a>
+      <a class="btn ghost" href="https://github.com/meetecho/juturna">Juturna on GitHub</a>
+      <a class="btn ghost" href="README.md">Read the docs</a>
+    </div>
+  </div>
+</header>
+
+<section>
+  <div class="wrap">
+    <h2>What's actually running</h2>
+    <p class="section-lede">Four demos, four different node types, all through the same
+      facade: <code>Juturna.create()</code>, <code>pipe.input().feed()</code>,
+      <code>pipe.output().on('message')</code>. Real models (Whisper, OPUS-MT,
+      a portrait segmenter, DeepFilterNet3), each its own Pyodide Worker so a
+      CPU-heavy node never stalls the others.</p>
+    <div class="grid">
+      <div class="stat"><div class="num">2.8s</div><div class="lbl">Worker start</div>
+        <div class="ctx">Pyodide + Juturna, one Worker</div></div>
+      <div class="stat"><div class="num">0.35ms</div><div class="lbl">message through a queue</div>
+        <div class="ctx">put + get, 6.4KB</div></div>
+      <div class="stat"><div class="num">31ms</div><div class="lbl">720p frame, in > out</div>
+        <div class="ctx">full RGBA round trip</div></div>
+      <div class="stat"><div class="num">~1.6s</div><div class="lbl">lost-Worker detection</div>
+        <div class="ctx">200ms ping, 1.5s timeout</div></div>
+    </div>
+  </div>
+</section>
+
+<section id="video-blur-numbers">
+  <div class="wrap">
+    <h2>Compositing on canvas beats numpy in a Worker</h2>
+    <p class="section-lede">Same segmentation model, same synthetic 640×480 frames at
+      24fps. Only the background blur/compositing step moved - from a
+      <code>background_blur</code> node (numpy, its own Worker) to the page's own canvas
+      (<code>filter: blur()</code> + <code>drawImage</code> respecting the mask's
+      per-pixel alpha for the soft edge).</p>
+    <table class="compare">
+      <tr><th></th><th>numpy Worker</th><th>canvas</th></tr>
+      <tr><td>frames dropped</td><td>2 / 75</td><td class="win">0 / 75</td></tr>
+      <tr><td>median latency</td><td>59.7ms</td><td class="win">39.7ms</td></tr>
+      <tr><td>p95 latency</td><td>109.2ms</td><td class="win">90.1ms</td></tr>
+      <tr><td>blur / composite cost</td><td>22.2ms</td><td class="win">8.8ms</td></tr>
+      <tr><td>Workers needed</td><td>3 (main, ml, cpu)</td><td class="win">2 (main, ml)</td></tr>
+    </table>
+  </div>
+</section>
+
+<section id="demos">
+  <div class="wrap">
+    <h2>Demos, ready to try</h2>
+    <p class="section-lede">Every page below runs locally, nothing leaves the browser.
+      Build once (see <a href="#run-it">below</a>), then open any of them from the same
+      <code>serve.py</code>.</p>
+    <div class="demos">
+
+      <div class="demo">
+        <div><span class="tag">whisper_asr</span><span class="tag">translate_opus</span></div>
+        <h3>Live translation - microphone</h3>
+        <p>English speech > live transcript > translation, Italian/Spanish/Chinese/German,
+          each model its own Worker. Window size and capture chunk are configurable.</p>
+        <div class="links">
+          <a href="examples/live-translation/index.html">Open ></a>
+        </div>
+      </div>
+
+      <div class="demo">
+        <div><span class="tag">translate_opus</span></div>
+        <h3>Live translation - text</h3>
+        <p>Type in English, the translation of the current line updates itself as you
+          type (debounced), Enter commits it to the history. No ASR in the way.</p>
+        <div class="links">
+          <a href="examples/live-translation/text.html">Open ></a>
+        </div>
+      </div>
+
+      <div class="demo">
+        <div><span class="tag">person_mask</span><span class="tag">canvas</span></div>
+        <h3>Background blur</h3>
+        <p>Portrait segmentation with onnxruntime-web, background blur composited on
+          canvas. 24fps, 40ms median latency, zero frames dropped.</p>
+        <div class="links">
+          <a href="examples/video-blur/canvas.html">Open (canvas) ></a>
+          <a href="examples/video-blur/index.html">Open (numpy) ></a>
+        </div>
+      </div>
+
+      <div class="demo">
+        <div><span class="tag">denoise_dfn</span></div>
+        <h3>Noise suppression</h3>
+        <p>DeepFilterNet3, streaming, 10ms frames. Record once, then reprocess the same
+          recording at a different attenuation without re-recording.</p>
+        <div class="links">
+          <a href="examples/noise-suppression/index.html">Open ></a>
+        </div>
+      </div>
+
+      <div class="demo">
+        <div><span class="tag">transcriber_kroko_wasm</span></div>
+        <h3>Live transcription - Kroko</h3>
+        <p>English speech > live transcript with Kroko's streaming Zipformer
+          (sherpa-onnx-wasm) instead of Whisper: a real streaming model, no
+          fixed-size window to wait for, ~70MB vs. Whisper base's ~150MB.</p>
+        <div class="links">
+          <a href="examples/live-transcription-kroko/index.html">Open ></a>
+        </div>
+      </div>
+
+      <div class="demo">
+        <div><span class="tag">transcriber_kroko_wasm</span></div>
+        <h3>Live translation - Kroko Microphone</h3>
+        <p>English speech > live transcript > translation, Italian/Spanish/Chinese/German,
+          each model its own Worker. Window size and capture chunk are configurable.</p>
+        <div class="links">
+          <a href="examples/live-translation-kroko/index.html">Open ></a>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<section id="run-it">
+  <div class="wrap">
+    <h2>Run it yourself</h2>
+    <p class="section-lede">A checkout of
+      <a href="https://github.com/meetecho/juturna">juturna</a> (branch
+      <code>feat/transport-browser</code> as of now) and Python 3.12 are the only
+      requirements beyond Chrome 137+.</p>
+    <ol class="steps">
+      <li><strong>Vendor the third-party files</strong> each demo declares (models,
+        onnxruntime-web, transformers.js):
+<pre>python3 build/vendor.py examples/live-translation/plugins examples/video-blur/plugins examples/noise-suppression/plugins</pre>
+        The Kroko demo's model is different: it is compiled into its WASM runtime,
+        not fetched by <code>vendor.py</code> - see
+        <a href="examples/live-transcription-kroko/plugins/nodes/proc/_transcriber_kroko_wasm/README.md">its node's README</a>
+        for the (one-time) build step.
+      </li>
+      <li><strong>Build the wheel and the plugins bundle.</strong> <code>--plugins</code>
+        repeats, so one bundle can serve every demo:
+<pre>python3 build/build.py --juturna ~/path/to/juturna \
+    --plugins examples/live-translation/plugins \
+    --plugins examples/video-blur/plugins \
+    --plugins examples/noise-suppression/plugins \
+    --plugins examples/live-transcription-kroko/plugins</pre>
+      </li>
+      <li><strong>Serve it</strong> (the isolation headers <code>SharedArrayBuffer</code>
+        needs are only in this server, not a generic static host):
+<pre>python3 serve.py 8765</pre>
+        Then open <a href="http://localhost:8765/">localhost:8765</a> - this same page,
+        served locally.
+      </li>
+    </ol>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    juturna-browser runs <a href="https://github.com/meetecho/juturna">Juturna</a>
+    pipelines in a Pyodide Worker. See <a href="README.md">README.md</a> for the API,
+    <a href="docs/guide.md">the guide</a> for how it works, and
+    <a href="docs/development.md">development.md</a> for the numbers.
+  </div>
+</footer>
+
+</body></html>

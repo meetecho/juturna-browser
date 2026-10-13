@@ -1,0 +1,219 @@
+# Third-party files translate_opus loads at run time, fetched into vendor/ by
+# `python3 build/vendor.py`. `path` is relative to vendor/.
+
+# transformers.js: tokenizer and the generation loop for Marian (OPUS-MT), on
+# top of onnxruntime-web. Apache-2.0.
+[[asset]]
+url = "https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.3.0/dist/transformers.min.js"
+path = "translate_opus/transformers/transformers.min.js"
+sha256 = "1475fd440e9932ab206682ee42cb18f6097403e9ee77ea62084c592d0f83597d"
+license = "Apache-2.0"
+
+# onnxruntime-web, the exact dev build transformers.js depends on (see
+# whisper_asr/assets.toml for why the stable 1.22.0 does not work here).
+[[asset]]
+url = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.31.0-dev.20260914-8d85527a0/dist/ort-wasm-simd-threaded.asyncify.mjs"
+path = "translate_opus/transformers/ort-wasm-simd-threaded.asyncify.mjs"
+sha256 = "0966b6105cd936744498aa60df7a22cbd47af3374dbc64a9ab561c08a71e3611"
+license = "MIT"
+
+[[asset]]
+url = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.31.0-dev.20260914-8d85527a0/dist/ort-wasm-simd-threaded.asyncify.wasm"
+path = "translate_opus/transformers/ort-wasm-simd-threaded.asyncify.wasm"
+sha256 = "49871f5a4409519797e127440868a6d1923339d9185907f301a5b2a1d90af082"
+license = "MIT"
+
+# OPUS-MT en-it, quantized (~110-130 MB), at a fixed commit. Apache-2.0
+# (Helsinki-NLP/Tatoeba-Challenge models), ONNX export by Xenova.
+[[asset]]
+url = "https://huggingface.co/Xenova/opus-mt-en-it/resolve/075406e3c8c2c30634d4a1bd8f00c21d9e162011/config.json"
+path = "translate_opus/models/Xenova/opus-mt-en-it/config.json"
+sha256 = "1cf40ab3aa16e8b6ea7c9766981de1da705a161564c0d5ad187c1e62e5c8ee85"
+license = "Apache-2.0"
+
+[[asset]]
+url = "https://huggingface.co/Xenova/opus-mt-en-it/resolve/075406e3c8c2c30634d4a1bd8f00c21d9e162011/generation_config.json"
+path = "translate_opus/models/Xenova/opus-mt-en-it/generation_config.json"
+sha256 = "15a4ad1f54640380c5119641a6a6247862bd32dc982b8170024d9d03eb3831a2"
+license = "Apache-2.0"
+
+[[asset]]
+url = "https://huggingface.co/Xenova/opus-mt-en-it/resolve/075406e3c8c2c30634d4a1bd8f00c21d9e162011/tokenizer.json"
+path = "translate_opus/models/Xenova/opus-mt-en-it/tokenizer.json"
+sha256 = "fb93411d5198eb85753bbd68e9ac24ccb42071003214851b2f37c81f2ea50416"
+license = "Apache-2.0"
+
+[[asset]]
+url = "https://huggingface.co/Xenova/opus-mt-en-it/resolve/075406e3c8c2c30634d4a1bd8f00c21d9e162011/tokenizer_config.json"
+path = "translate_opus/models/Xenova/opus-mt-en-it/tokenizer_config.json"
+sha256 = "39ab5df0b1163bfa8a2728c37a3e81dc14a5ee910dcd33f49d46132f26bc4744"
+license = "Apache-2.0"
+
+[[asset]]
+url = "https://huggingface.co/Xenova/opus-mt-en-it/resolve/075406e3c8c2c30634d4a1bd8f00c21d9e162011/onnx/encoder_model_quantized.onnx"
+path = "translate_opus/models/Xenova/opus-mt-en-it/onnx/encoder_model_quantized.onnx"
+sha256 = "b51c5110c7ba356ef01ee400d427afe162e657de1d7a2e9a40deedd811b49e6f"
+license = "Apache-2.0"
+
+[[asset]]
+url = "https://huggingface.co/Xenova/opus-mt-en-it/resolve/075406e3c8c2c30634d4a1bd8f00c21d9e162011/onnx/decoder_model_merged_quantized.onnx"
+path = "translate_opus/models/Xenova/opus-mt-en-it/onnx/decoder_model_merged_quantized.onnx"
+sha256 = "f9db146ed7665ea7d437dc4df564e3af5df923366de4d52aaf2c4b4e3e4ae4f1"
+license = "Apache-2.0"
+
+
+# OPUS-MT en-fr, quantized (~110-130 MB), at a fixed commit. Apache-2.0
+# (Helsinki-NLP/Tatoeba-Challenge models), ONNX export by Xenova.
+[[asset]]
+url = "https://huggingface.co/Xenova/opus-mt-en-fr/resolve/28726206f80896b90035bd99cccd5cc1e151f916/config.json"
+path = "translate_opus/models/Xenova/opus-mt-en-fr/config.json"
+sha256 = "b522b73fcc86f77981349c1df2a2e041eed0dbcbea4acf2635019cf21d51ffc0"
+license = "Apache-2.0"
+
+[[asset]]
+url = "https://huggingface.co/Xenova/opus-mt-en-fr/resolve/28726206f80896b90035bd99cccd5cc1e151f916/generation_config.json"
+path = "translate_opus/models/Xenova/opus-mt-en-fr/generation_config.json"
+sha256 = "f9a4824ec78c61b4a95afc43bbb6a9545a44ccf1c01d0963a286e799b9e7b256"
+license = "Apache-2.0"
+
+[[asset]]
+url = "https://huggingface.co/Xenova/opus-mt-en-fr/resolve/28726206f80896b90035bd99cccd5cc1e151f916/tokenizer.json"
+path = "translate_opus/models/Xenova/opus-mt-en-fr/tokenizer.json"
+sha256 = "8391785c1a2139e7af4678571ccd8dc654ecbb72e4be186940f65d7c604f0246"
+license = "Apache-2.0"
+
+[[asset]]
+url = "https://huggingface.co/Xenova/opus-mt-en-fr/resolve/28726206f80896b90035bd99cccd5cc1e151f916/tokenizer_config.json"
+path = "translate_opus/models/Xenova/opus-mt-en-fr/tokenizer_config.json"
+sha256 = "eb8dfaa142fe03627c8d035415f56c46284b6ee4a16e54c6e8236928ac5a1170"
+license = "Apache-2.0"
+
+[[asset]]
+url = "https://huggingface.co/Xenova/opus-mt-en-fr/resolve/28726206f80896b90035bd99cccd5cc1e151f916/onnx/encoder_model_quantized.onnx"
+path = "translate_opus/models/Xenova/opus-mt-en-fr/onnx/encoder_model_quantized.onnx"
+sha256 = "0a81bdba62f53223740a8c6c6f58e716eba8ea1f92dfa569caf27ed5e3b6a0f7"
+license = "Apache-2.0"
+
+[[asset]]
+url = "https://huggingface.co/Xenova/opus-mt-en-fr/resolve/28726206f80896b90035bd99cccd5cc1e151f916/onnx/decoder_model_merged_quantized.onnx"
+path = "translate_opus/models/Xenova/opus-mt-en-fr/onnx/decoder_model_merged_quantized.onnx"
+sha256 = "333b244bce16023df04541c8cf9fd60aec9b0569da393c4b831d561897b0bda8"
+license = "Apache-2.0"
+
+
+# OPUS-MT en-zh, quantized (~110-130 MB), at a fixed commit. Apache-2.0
+# (Helsinki-NLP/Tatoeba-Challenge models), ONNX export by Xenova.
+[[asset]]
+url = "https://huggingface.co/Xenova/opus-mt-en-zh/resolve/046f55aec303cdee3e0318604406d4df20f1e8ea/config.json"
+path = "translate_opus/models/Xenova/opus-mt-en-zh/config.json"
+sha256 = "4727d1229a04f95bf6f39abf949d8080615433d99d6ebd85f81c09edd247d5fa"
+license = "Apache-2.0"
+
+[[asset]]
+url = "https://huggingface.co/Xenova/opus-mt-en-zh/resolve/046f55aec303cdee3e0318604406d4df20f1e8ea/generation_config.json"
+path = "translate_opus/models/Xenova/opus-mt-en-zh/generation_config.json"
+sha256 = "b743baabb7da4c1a2f19fe558bd6b4c0c7c3b0762fcb5ca7a48fe5a2c2219803"
+license = "Apache-2.0"
+
+[[asset]]
+url = "https://huggingface.co/Xenova/opus-mt-en-zh/resolve/046f55aec303cdee3e0318604406d4df20f1e8ea/tokenizer.json"
+path = "translate_opus/models/Xenova/opus-mt-en-zh/tokenizer.json"
+sha256 = "d0c7da27056e8f42adce9e76d8e792e5daa64e15f5acd2e7aabf0121877dd4c1"
+license = "Apache-2.0"
+
+[[asset]]
+url = "https://huggingface.co/Xenova/opus-mt-en-zh/resolve/046f55aec303cdee3e0318604406d4df20f1e8ea/tokenizer_config.json"
+path = "translate_opus/models/Xenova/opus-mt-en-zh/tokenizer_config.json"
+sha256 = "a914596e6bff113a8428d4793b586da87cd0b95697a0e72aba90cc1d95858481"
+license = "Apache-2.0"
+
+[[asset]]
+url = "https://huggingface.co/Xenova/opus-mt-en-zh/resolve/046f55aec303cdee3e0318604406d4df20f1e8ea/onnx/encoder_model_quantized.onnx"
+path = "translate_opus/models/Xenova/opus-mt-en-zh/onnx/encoder_model_quantized.onnx"
+sha256 = "d3b7912bf6a9bd27e4c074c2df91d4ff3d5b4bc5f7f6c8d7cc9c805c98fbafee"
+license = "Apache-2.0"
+
+[[asset]]
+url = "https://huggingface.co/Xenova/opus-mt-en-zh/resolve/046f55aec303cdee3e0318604406d4df20f1e8ea/onnx/decoder_model_merged_quantized.onnx"
+path = "translate_opus/models/Xenova/opus-mt-en-zh/onnx/decoder_model_merged_quantized.onnx"
+sha256 = "023be4f841f4c47cd65fffcbaa81c0d99d7f7e0138f7ba0e03fa220a4e688aff"
+license = "Apache-2.0"
+
+
+
+# OPUS-MT en-es, quantized (~110-130 MB), at a fixed commit. Apache-2.0
+# (Helsinki-NLP/Tatoeba-Challenge models), ONNX export by Xenova.
+[[asset]]
+url = "https://huggingface.co/Xenova/opus-mt-en-es/resolve/4b002a4c7edd54a7ced58877258b87f7efd3f892/config.json"
+path = "translate_opus/models/Xenova/opus-mt-en-es/config.json"
+sha256 = "499eae1f97eeba63172fc884f92fd727ae803b7ceb79c0f653aa4b011152af2f"
+license = "Apache-2.0"
+
+[[asset]]
+url = "https://huggingface.co/Xenova/opus-mt-en-es/resolve/4b002a4c7edd54a7ced58877258b87f7efd3f892/generation_config.json"
+path = "translate_opus/models/Xenova/opus-mt-en-es/generation_config.json"
+sha256 = "b743baabb7da4c1a2f19fe558bd6b4c0c7c3b0762fcb5ca7a48fe5a2c2219803"
+license = "Apache-2.0"
+
+[[asset]]
+url = "https://huggingface.co/Xenova/opus-mt-en-es/resolve/4b002a4c7edd54a7ced58877258b87f7efd3f892/tokenizer.json"
+path = "translate_opus/models/Xenova/opus-mt-en-es/tokenizer.json"
+sha256 = "285eb29e7155ee48851a77960797813f86a125f70d2c1a124f613f1fbd2b19c3"
+license = "Apache-2.0"
+
+[[asset]]
+url = "https://huggingface.co/Xenova/opus-mt-en-es/resolve/4b002a4c7edd54a7ced58877258b87f7efd3f892/tokenizer_config.json"
+path = "translate_opus/models/Xenova/opus-mt-en-es/tokenizer_config.json"
+sha256 = "dfb00189b823fb0f15464e9c4e68dd8594f5e5ef5f8dc497468a37741e73aa1f"
+license = "Apache-2.0"
+
+[[asset]]
+url = "https://huggingface.co/Xenova/opus-mt-en-es/resolve/4b002a4c7edd54a7ced58877258b87f7efd3f892/onnx/encoder_model_quantized.onnx"
+path = "translate_opus/models/Xenova/opus-mt-en-es/onnx/encoder_model_quantized.onnx"
+sha256 = "03434edd1147e6c49e22066e9dc5888235e99cc35a6711d1c4ea5b06455d5da9"
+license = "Apache-2.0"
+
+[[asset]]
+url = "https://huggingface.co/Xenova/opus-mt-en-es/resolve/4b002a4c7edd54a7ced58877258b87f7efd3f892/onnx/decoder_model_merged_quantized.onnx"
+path = "translate_opus/models/Xenova/opus-mt-en-es/onnx/decoder_model_merged_quantized.onnx"
+sha256 = "58ee5ddd6e22d1693d8722b90c1486afb93700a4376cf28fd74175052ad530ae"
+license = "Apache-2.0"
+
+
+# OPUS-MT en-de, quantized (~110-130 MB), at a fixed commit. Apache-2.0
+# (Helsinki-NLP/Tatoeba-Challenge models), ONNX export by Xenova.
+[[asset]]
+url = "https://huggingface.co/Xenova/opus-mt-en-de/resolve/1ca130c44c4c5441ef16d48aae521a424ab644f7/config.json"
+path = "translate_opus/models/Xenova/opus-mt-en-de/config.json"
+sha256 = "517955ebf66cd6523f9982851dd41771b74fb2d9c00b4933ba2922ac7a63336f"
+license = "Apache-2.0"
+
+[[asset]]
+url = "https://huggingface.co/Xenova/opus-mt-en-de/resolve/1ca130c44c4c5441ef16d48aae521a424ab644f7/generation_config.json"
+path = "translate_opus/models/Xenova/opus-mt-en-de/generation_config.json"
+sha256 = "cd16a899388283889c6e87b903c689ce73430aaa18335415f9d9ea770606538e"
+license = "Apache-2.0"
+
+[[asset]]
+url = "https://huggingface.co/Xenova/opus-mt-en-de/resolve/1ca130c44c4c5441ef16d48aae521a424ab644f7/tokenizer.json"
+path = "translate_opus/models/Xenova/opus-mt-en-de/tokenizer.json"
+sha256 = "8e0fcf45621ea87fa680c7f9969c37a7f819c1f4c7658a2e6e0879b866a14b17"
+license = "Apache-2.0"
+
+[[asset]]
+url = "https://huggingface.co/Xenova/opus-mt-en-de/resolve/1ca130c44c4c5441ef16d48aae521a424ab644f7/tokenizer_config.json"
+path = "translate_opus/models/Xenova/opus-mt-en-de/tokenizer_config.json"
+sha256 = "4500a1295197174119cf17f9b2e6eab2d5c3a9c64009fb1e37ebd2868bf1161c"
+license = "Apache-2.0"
+
+[[asset]]
+url = "https://huggingface.co/Xenova/opus-mt-en-de/resolve/1ca130c44c4c5441ef16d48aae521a424ab644f7/onnx/encoder_model_quantized.onnx"
+path = "translate_opus/models/Xenova/opus-mt-en-de/onnx/encoder_model_quantized.onnx"
+sha256 = "15834b45fabd2dfb8c6c029b3ca3e7289aeefd90ece798ce42bcf548d1bd3b8d"
+license = "Apache-2.0"
+
+[[asset]]
+url = "https://huggingface.co/Xenova/opus-mt-en-de/resolve/1ca130c44c4c5441ef16d48aae521a424ab644f7/onnx/decoder_model_merged_quantized.onnx"
+path = "translate_opus/models/Xenova/opus-mt-en-de/onnx/decoder_model_merged_quantized.onnx"
+sha256 = "8b46a825964cdd182fe47cc780f0fb87d357eae1f47cf20aa63c1c09be5b510c"
+license = "Apache-2.0"

@@ -1,0 +1,28 @@
+# Third-party files person_mask loads at run time, fetched into vendor/ by
+# `python3 build/vendor.py`. `path` is relative to vendor/.
+
+# onnxruntime-web: the WASM build, and the files it loads by itself
+[[asset]]
+url = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/ort.wasm.min.mjs"
+path = "person_mask/ort/ort.wasm.min.mjs"
+sha256 = "6ef726f355b791129f7ddf3f62e7877a16b9b777abe87004b8ab306e6b9cf265"
+license = "MIT"
+
+[[asset]]
+url = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/ort-wasm-simd-threaded.mjs"
+path = "person_mask/ort/ort-wasm-simd-threaded.mjs"
+sha256 = "30dd851d9c00622940500f71ddd2ff8820c5cb65270816080175b958705385a8"
+license = "MIT"
+
+[[asset]]
+url = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/ort-wasm-simd-threaded.wasm"
+path = "person_mask/ort/ort-wasm-simd-threaded.wasm"
+sha256 = "71aef04959c5c1b6de461b6538e2058e306610034a85aad2742d0c7fd4533fe4"
+license = "MIT"
+
+# MediaPipe Selfie Segmentation, converted to ONNX, at a fixed commit
+[[asset]]
+url = "https://huggingface.co/onnx-community/mediapipe_selfie_segmentation-web/resolve/441d63532b2f0dbb50118a097b80b659b4460c60/onnx/model.onnx"
+path = "person_mask/selfie.onnx"
+sha256 = "44f328e21a3840b7ddb177c8efe50177248d15d25b4905479b06e50d2470584e"
+license = "Apache-2.0"

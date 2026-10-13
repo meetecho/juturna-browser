@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>juturna: live translation - text</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --bg: #0b0d10; --panel: #12151a; --line: #22262d; --text: #e6e8eb;
+    --muted: #9aa3ad; --accent: #6ee7c8; --accent2: #7aa2ff; --mono: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
+  }
+  a { color: var(--accent2); }
+  code { font-family: var(--mono); background: #1a1e24; padding: 0 5px; border-radius: 4px; font-size: .9em; }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 32px 24px 72px; }
+  .back { color: var(--muted); text-decoration: none; font-size: .88rem; }
+  .back:hover { color: var(--text); }
+  h1 { font-size: 1.5rem; margin: 14px 0 6px; }
+
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 20px 22px; margin-bottom: 20px; }
+  .panel h2 { margin: 0 0 16px; font-size: .8rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; font-weight: 600; }
+  .row { display: flex; gap: 20px; flex-wrap: wrap; }
+  label { display: flex; flex-direction: column; gap: 6px; font-size: .85rem; color: var(--muted); }
+  select, input[type="number"] {
+    background: #1a1e24; border: 1px solid var(--line); color: var(--text);
+    border-radius: 6px; padding: 7px 10px; font: inherit; font-family: var(--mono); font-size: .9rem;
+  }
+  select:disabled, input:disabled, textarea:disabled { opacity: .5; }
+
+  .actions { display: flex; gap: 10px; align-items: center; margin: 22px 0; }
+  .btn { padding: 10px 22px; border-radius: 8px; border: 1px solid var(--line); background: transparent;
+         color: var(--text); font-weight: 600; font-size: .92rem; cursor: pointer; font-family: inherit; }
+  .btn.primary { background: var(--accent); color: #04140f; border-color: var(--accent); }
+  .btn:disabled { opacity: .4; cursor: default; }
+
+  textarea { width: 100%; background: #1a1e24; border: 1px solid var(--line); color: var(--text);
+             border-radius: 8px; padding: 10px 12px; font: inherit; font-size: .95rem; resize: vertical; }
+  #status { color: var(--muted); font-size: .85rem; margin: 10px 0; }
+  #current p, #lines p { background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+             padding: 12px 16px; margin: 0 0 10px; }
+  #current b, #lines b { color: var(--text); }
+  #log { font-family: var(--mono); background: #1a1e24; border: 1px solid var(--line); border-radius: 8px;
+         padding: 12px 14px; font-size: .82rem; color: var(--muted); white-space: pre-wrap; min-height: 1.2em; margin-top: 16px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="../../index.html">← demos</a>
+  <h1>Live translation - text</h1>
+
+  <div class="panel">
+    <h2>Settings</h2>
+    <form id="settings">
+      <div class="row">
+        <label>target language
+          <select id="target-lang">
+            <option value="it">italiano</option>
+            <option value="es">español</option>
+            <option value="zh">中文</option>
+            <option value="de">deutsch</option>
+          </select>
+        </label>
+        <label>debounce (ms)
+          <input id="debounce-ms" type="number" min="200" max="5000" step="100" value="500" style="width:5.5em">
+        </label>
+        <label>max threads <span title="onnxruntime-web's WASM pool for translate_opus. Empty = auto (min(4, cores/2)).">ⓘ</span>
+          <input id="max-threads" type="number" min="1" max="16" step="1" placeholder="auto" style="width:5em">
+        </label>
+      </div>
+    </form>
+  </div>
+
+  <div class="actions">
+    <button id="start" class="btn primary">Start</button>
+    <button id="stop" class="btn" disabled>Stop</button>
+  </div>
+
+  <textarea id="text" rows="3" placeholder="type in english..." disabled></textarea>
+  <p id="status"></p>
+  <div id="current"></div>
+  <div id="lines"></div>
+  <pre id="log"></pre>
+</div>
+<script type="module">
+import { Juturna } from '../../src/juturna.js';
+
+const MODEL_ID = {
+  it: 'Xenova/opus-mt-en-it',
+  es: 'Xenova/opus-mt-en-es',
+  zh: 'Xenova/opus-mt-en-zh',
+  de: 'Xenova/opus-mt-en-de',
+};
+
+const $ = (id) => document.getElementById(id);
+const log = (m) => { $('log').textContent += m + '\n'; };
+const url = (path) => new URL(path, location.href).href;
+const vendor = (path) => url('../../vendor/' + path);
+
+const query = new URLSearchParams(location.search);
+if (query.has('target') && MODEL_ID[query.get('target')]) {
+  $('target-lang').value = query.get('target');
+}
+if (query.has('debounce')) $('debounce-ms').value = query.get('debounce');
+if (query.has('maxThreads')) $('max-threads').value = query.get('maxThreads');
+
+function buildConfig() {
+  const targetLang = $('target-lang').value;
+  const maxThreadsRaw = $('max-threads').value;
+  const maxThreads = maxThreadsRaw !== '' ? Number(maxThreadsRaw) : null;
+
+  return {
+    pipeline: {
+      name: 'tt', id: 'tt-1', folder: '/tmp/juturna/tt', transport: 'browser',
+      nodes: [
+        { name: 'in', type: 'BrowserInput', configuration: {} },
+        { name: 'mt', type: 'extensions.nodes.TranslateOpus', worker: 'mt', configuration: {
+          transformers_url: vendor('translate_opus/transformers/transformers.min.js'),
+          wasm_mjs_url: vendor('translate_opus/transformers/ort-wasm-simd-threaded.asyncify.mjs'),
+          wasm_bin_url: vendor('translate_opus/transformers/ort-wasm-simd-threaded.asyncify.wasm'),
+          models_url: vendor('translate_opus/models/'),
+          model_id: MODEL_ID[targetLang], source_lang: 'en', target_lang: targetLang,
+          max_threads: maxThreads,
+        } },
+        { name: 'out', type: 'BrowserOutput', configuration: {} },
+      ],
+      links: [{ from: 'in', to: 'mt' }, { from: 'mt', to: 'out' }],
+    },
+  };
+}
+
+let jt, pipe, input, debounceTimer = null;
+
+function setControlsDisabled(disabled) {
+  for (const el of $('settings').elements) el.disabled = disabled;
+}
+
+$('start').onclick = async () => {
+  $('start').disabled = true;
+  setControlsDisabled(true);
+  $('status').textContent = 'loading juturna and the model...';
+  try {
+    jt = await Juturna.create({ workers: ['main', 'mt'] });
+    pipe = await jt.pipeline(buildConfig());
+    input = pipe.input('in');
+    pipe.onError((e) => log('ERROR: ' + e.message));
+    pipe.output('out').on('message', onTranslation);
+    await pipe.start();
+    $('status').textContent = 'ready, type something.';
+    $('text').disabled = false;
+    $('stop').disabled = false;
+  } catch (err) {
+    $('status').textContent = 'ERROR: ' + err;
+    log('ERROR: ' + err);
+    $('start').disabled = false;
+    setControlsDisabled(false);
+  }
+};
+
+$('stop').onclick = async () => {
+  $('stop').disabled = true;
+  $('text').disabled = true;
+  clearTimeout(debounceTimer);
+  await pipe.stop();
+  await pipe.destroy();
+  jt.terminate();
+  $('status').textContent = 'stopped. change language and press Start to restart.';
+  $('current').textContent = '';
+  $('start').disabled = false;
+  setControlsDisabled(false);
+};
+
+function onTranslation({ payload, meta }) {
+  if (meta && meta.final) {
+    const line = document.createElement('p');
+    line.innerHTML = `<b>${payload.source_text}</b><br> > ${payload.text}`;
+    $('lines').prepend(line);
+    $('current').textContent = '';
+    $('status').textContent = 'ready, type something.';
+  } else {
+    // Not final: overwrites the current line, only Enter fixes it below.
+    $('current').innerHTML = `<p><b>${payload.source_text}</b><br> > ${payload.text}</p>`;
+    $('status').textContent = 'ready, type something.';
+  }
+}
+
+function send(text, final) {
+  // meta.final travels through to the output message (translate_opus
+  // copies message.meta), so onTranslation knows whether to overwrite
+  // the current line or fix it.
+  input.feed({ kind: 'object', payload: { text }, meta: { final } });
+}
+
+$('text').addEventListener('input', () => {
+  clearTimeout(debounceTimer);
+  const text = $('text').value.trim();
+  if (!text) return;
+
+  $('status').textContent = 'waiting for you to stop typing...';
+  const debounceMs = Number($('debounce-ms').value) || 500;
+  debounceTimer = setTimeout(() => {
+    $('status').textContent = 'translating...';
+    send(text, false);
+  }, debounceMs);
+});
+
+$('text').addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter') return;
+  e.preventDefault();
+  clearTimeout(debounceTimer);
+  const text = $('text').value.trim();
+  if (!text) return;
+
+  $('status').textContent = 'translating...';
+  send(text, true);
+  $('text').value = '';
+});
+</script>
+</body></html>

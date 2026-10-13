@@ -1,0 +1,81 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>large frames test</title></head>
+<body><pre id="out">running...</pre>
+<script type="module">
+// A 1280x720 RGBA frame (3.7 MB) does not fit the default queue slots (2 MB) of
+// the queues that lead to a node of another Worker: the transport of the
+// pipeline is configured with bigger ones. Inside a Worker the queues hold the
+// messages as they are, and nothing needs configuring.
+import { Juturna } from '../src/juturna.js';
+
+window.__result = null;
+const query = new URLSearchParams(location.search);   // ?dist=../dist_x/ runs another bundle
+const W = 1280, H = 720;
+const checks = {}, timings = {};
+const check = (n, ok, d) => { checks[n] = ok ? 'ok' : 'FAIL' + (d !== undefined ? ': ' + JSON.stringify(d) : ''); };
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const config = (transport) => ({ pipeline: { name: 'big', id: 'big-1', folder: '/tmp/juturna/big', transport,
+  nodes: [{ name: 'in', type: 'BrowserInput', configuration: {} }, { name: 'out', type: 'BrowserOutput', configuration: {} }],
+  links: [{ from: 'in', to: 'out' }] } });
+const frame = (seed) => { const px = new Uint8Array(W * H * 4); for (let i = 0; i < px.length; i++) px[i] = (i * 7 + seed) & 255; return px; };
+const image = (px, meta) => ({ kind: 'image', payload: { image: px, width: W, height: H, depth: 4, pixel_format: 'rgba' }, meta });
+
+try {
+  {
+    const jt = await Juturna.create(query.get('dist') ? { base: new URL(query.get('dist'), location.href) } : {});
+    const pipe = await jt.pipeline(config({ name: 'browser', max_payload_bytes: 4000000 }));
+    const got = [], errors = [], sentAt = new Map(), latency = [];
+    pipe.output('out').on('message', (m) => { got.push(m); latency.push(performance.now() - sentAt.get(m.meta.i)); });
+    pipe.onError((e) => errors.push(e.message));
+    const input = pipe.input('in');
+    await pipe.start();
+    const originals = [];
+    for (let i = 0; i < 10; i++) { const px = frame(i); originals.push(px.slice()); sentAt.set(i, performance.now()); input.feed(image(px, { i })); await sleep(100); }
+    await sleep(1500);
+    check('big_frames_arrive', got.length === 10, got.length);
+    check('big_frames_identical', got.every((m, k) => m.payload.image.length === W * H * 4 && m.payload.image.every((v, j) => v === originals[k][j])));
+    check('big_frames_shape', got[0] && got[0].payload.width === W && got[0].payload.height === H);
+    check('no_errors_when_configured', errors.length === 0, errors);
+    latency.sort((a, b) => a - b); timings.latency_ms_720p_in_to_out = { p50: +latency[latency.length >> 1].toFixed(1), max: +latency.at(-1).toFixed(1) };
+    await pipe.stop(); await pipe.destroy(); jt.terminate();
+  }
+  {
+    // inside a Worker the queues are not rings: no slot to fit, no configuration needed
+    const jt = await Juturna.create(query.get('dist') ? { base: new URL(query.get('dist'), location.href) } : {});
+    const pipe = await jt.pipeline(config('browser'));
+    const got = [], errors = [];
+    pipe.output('out').on('message', (m) => got.push(m));
+    pipe.onError((e) => errors.push(e.message));
+    const input = pipe.input('in');
+    await pipe.start();
+    const px = frame(1);
+    input.feed(image(px.slice(), { i: 'big' }));
+    await sleep(1500);
+    check('a_big_frame_needs_no_config_inside_a_worker', got.length === 1 && got[0].payload.image.every((v, j) => v === px[j]) && errors.length === 0, [got.length, errors]);
+    await pipe.stop(); await pipe.destroy(); jt.terminate();
+  }
+  {
+    // across Workers the message goes through a ring, and must fit its slot
+    const crossing = (transport) => ({ pipeline: { name: 'big', id: 'big-2', folder: '/tmp/juturna/big', transport,
+      nodes: [{ name: 'in', type: 'BrowserInput', configuration: {} },
+              { name: 'far', type: 'extensions.nodes.Burn', worker: 'heavy', configuration: { burn_ms: 0 } },
+              { name: 'out', type: 'BrowserOutput', configuration: {} }],
+      links: [{ from: 'in', to: 'far' }, { from: 'far', to: 'out' }] } });
+    const jt = await Juturna.create({ ...(query.get('dist') ? { base: new URL(query.get('dist'), location.href) } : {}), workers: ['main', 'heavy'] });
+    const pipe = await jt.pipeline(crossing('browser'));
+    const got = [];
+    pipe.output('out').on('message', (m) => got.push(m.meta.i));
+    const input = pipe.input('in');
+    await pipe.start();
+    input.feed(image(frame(1), { i: 'big' }));
+    input.feed({ kind: 'audio', payload: { audio: new Float32Array(160), sampling_rate: 16000 }, meta: { i: 'small' } });
+    await sleep(2500);
+    const status = await pipe.status();
+    check('default_slot_rejects_a_big_frame_across_workers', !got.includes('big') && status.nodes.in.health.update_failures >= 1, [got, status.nodes.in.health]);
+    check('the_sender_keeps_working_after_the_refusal', got.includes('small'), got);
+    jt.terminate();
+  }
+  window.__result = { timings, checks };
+} catch (e) { window.__result = { fatal: String(e && e.stack || e), checks }; }
+document.getElementById('out').textContent = JSON.stringify(window.__result, null, 1);
+</script></body></html>

@@ -1,0 +1,89 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>facade multi-worker test</title></head>
+<body><pre id="out">running...</pre>
+<script type="module">
+import { Juturna } from '../src/juturna.js';
+
+window.__result = null;
+const checks = {}, timings = {}, res = {};
+const check = (n, ok, d) => { checks[n] = ok ? 'ok' : 'FAIL' + (d !== undefined ? ': ' + JSON.stringify(d) : ''); };
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const ticks = (everyMs, count, fn) => new Promise((resolve) => {
+  const w = new Worker(URL.createObjectURL(new Blob([`let n = 0; setInterval(() => postMessage(n++), ${everyMs});`], { type: 'text/javascript' })));
+  let n = 0;
+  w.onmessage = () => { if (n++ < count) fn(); else { w.terminate(); resolve(); } };
+});
+const stats = (a) => { if (!a.length) return null; const s = [...a].sort((x, y) => x - y), q = (p) => s[Math.min(s.length - 1, Math.floor(p * s.length))];
+  return { n: s.length, p50: +q(0.5).toFixed(1), p95: +q(0.95).toFixed(1), max: +s[s.length - 1].toFixed(1) }; };
+
+const TYPES = { browser_input: 'BrowserInput', browser_output: 'BrowserOutput', burn: 'extensions.nodes.Burn' };
+const node = (name, mark, extra = {}) => ({ name, type: TYPES[mark], configuration: mark === 'burn' ? { burn_ms: extra.burn_ms ?? 0 } : {}, ...(extra.worker ? { worker: extra.worker } : {}) });
+const config = (nodes, links) => ({ pipeline: { name: 'mw', id: 'mw-1', folder: '/tmp/juturna/mw', transport: 'browser', nodes, links } });
+const audio = (v, n = 160) => ({ kind: 'audio', payload: { audio: new Float32Array(n).fill(v), sampling_rate: 16000 } });
+
+try {
+  // A: correctness across Workers: in(main) -> burn(heavy) -> out(main)
+  {
+    const t0 = performance.now();
+    const jt = await Juturna.create({ workers: ['main', 'heavy'] });
+    timings.create_two_workers_ms = Math.round(performance.now() - t0);
+    const pipe = await jt.pipeline(config(
+      [node('in', 'browser_input'), node('burn', 'burn', { worker: 'heavy', burn_ms: 0 }), node('out', 'browser_output')],
+      [{ from: 'in', to: 'burn' }, { from: 'burn', to: 'out' }]));
+    const got = [], errors = [];
+    pipe.output('out').on('message', (m) => got.push(m));
+    pipe.onError((e) => errors.push(e.message));
+    const inp = pipe.input('in');
+    await pipe.start();
+    for (let i = 0; i < 40; i++) inp.feed({ ...audio(i), meta: { i } });
+    await sleep(1500);
+    check('cross_worker_all_arrive', got.length === 40, got.length);
+    check('cross_worker_order_and_values', got.every((m, k) => m.meta.i === k && m.payload.audio[0] === k && m.payload.audio.length === 160));
+    check('cross_worker_typed_array', got[0] && got[0].payload.audio instanceof Float32Array);
+    const st = await pipe.status();
+    check('status_merges_workers', Object.keys(st.nodes).sort().join() === 'burn,in,out' && Object.keys(st.workers).sort().join() === 'heavy,main', [Object.keys(st.nodes), st.workers]);
+    check('status_running_both', /running/i.test(st.workers.main) && /running/i.test(st.workers.heavy), st.workers);
+
+    got.length = 0;
+    for (let i = 0; i < 30; i++) inp.feed({ ...audio(100 + i), meta: { i: 100 + i } });
+    await pipe.stop();                         // no wait: what is in flight must still be consumed
+    check('stop_drains_across_workers', got.length === 30, got.length);
+    check('no_errors', errors.length === 0, errors);
+    const after = await pipe.status();
+    check('status_after_stop', /stopped/i.test(after.workers.main) && /stopped/i.test(after.workers.heavy), after.workers);
+    await pipe.destroy();
+    jt.terminate();
+  }
+
+  // B: isolation. A probe branch in(main)->out2(main) is timed while burn keeps a CPU busy 200 ms per message.
+  for (const where of ['main', 'heavy']) {
+    const jt = await Juturna.create({ workers: where === 'main' ? ['main'] : ['main', 'heavy'] });
+    const pipe = await jt.pipeline(config(
+      [node('in', 'browser_input'), node('burn', 'burn', { worker: where, burn_ms: 200 }), node('out', 'browser_output'),
+       node('probe_in', 'browser_input'), node('probe_out', 'browser_output')],
+      [{ from: 'in', to: 'burn' }, { from: 'burn', to: 'out' }, { from: 'probe_in', to: 'probe_out' }]));
+    const lat = [], burned = [];
+    pipe.output('probe_out').on('message', (m) => lat.push(performance.now() - m.meta.t));
+    pipe.output('out').on('message', (m) => burned.push(m.meta.i));
+    const heavy = pipe.input('in'), probe = pipe.input('probe_in');
+    await pipe.start();
+    await sleep(500);
+    // a timer in a Worker: setTimeout in a background tab is throttled to 1 s
+    const t0 = performance.now();
+    let nextBurn = 0, sentBurn = 0;
+    await ticks(50, 80, () => {
+      if (performance.now() - t0 >= nextBurn) { heavy.feed({ ...audio(1), meta: { i: sentBurn++ } }); nextBurn += 250; }
+      probe.feed({ ...audio(0, 16), meta: { t: performance.now() } });
+    });
+    await ticks(50, 30, () => {});
+    res[`probe_latency_ms_burn_in_${where}`] = stats(lat);
+    res[`burn_messages_${where}`] = { sent: sentBurn, arrived: burned.length };
+    check(`probe_all_arrive_burn_in_${where}`, lat.length >= 75, lat.length);
+    await pipe.stop(); await pipe.destroy(); jt.terminate();
+  }
+  const m = res.probe_latency_ms_burn_in_main, h = res.probe_latency_ms_burn_in_heavy;
+  check('isolation_helps', m && h && h.p95 < m.p95 / 2, [m && m.p95, h && h.p95]);
+  window.__result = { timings, res, checks };
+} catch (e) { window.__result = { fatal: String(e && e.stack || e), checks, res }; }
+document.getElementById('out').textContent = JSON.stringify(window.__result, null, 1);
+</script></body></html>

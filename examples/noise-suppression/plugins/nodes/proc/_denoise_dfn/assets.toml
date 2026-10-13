@@ -1,0 +1,30 @@
+# Third-party files denoise_dfn loads at run time, fetched into vendor/ by
+# `python3 build/vendor.py`. `path` is relative to vendor/.
+
+# onnxruntime-web: the WASM build, and the files it loads by itself
+[[asset]]
+url = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/ort.wasm.min.mjs"
+path = "denoise_dfn/ort/ort.wasm.min.mjs"
+sha256 = "6ef726f355b791129f7ddf3f62e7877a16b9b777abe87004b8ab306e6b9cf265"
+license = "MIT"
+
+[[asset]]
+url = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/ort-wasm-simd-threaded.mjs"
+path = "denoise_dfn/ort/ort-wasm-simd-threaded.mjs"
+sha256 = "30dd851d9c00622940500f71ddd2ff8820c5cb65270816080175b958705385a8"
+license = "MIT"
+
+[[asset]]
+url = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/ort-wasm-simd-threaded.wasm"
+path = "denoise_dfn/ort/ort-wasm-simd-threaded.wasm"
+sha256 = "71aef04959c5c1b6de461b6538e2058e306610034a85aad2742d0c7fd4533fe4"
+license = "MIT"
+
+# DeepFilterNet3 as a streaming ONNX graph (torchDF export: STFT, ERB features
+# and deep filtering are inside; the state is one tensor), at a fixed commit.
+# MIT OR Apache-2.0, by Hendrik Schroeter et al.
+[[asset]]
+url = "https://huggingface.co/kimtos-labs/denoiser-dfn3/resolve/888f33c41851d7168ae31c3637c323b9e2f3c2a4/denoiser_model.onnx"
+path = "denoise_dfn/dfn3.onnx"
+sha256 = "fe5eb64fa2e4154c83f8e4935e82871c850c154387ee892e0ab65fe179e7d8c9"
+license = "MIT OR Apache-2.0"
