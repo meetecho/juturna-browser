@@ -7,7 +7,7 @@ messages to the pipeline and receives messages from it.
 
 ```
 page                Worker "main"                Worker "ml"          Worker "cpu"
- |  feed()            browser_input                person_mask       background_blur
+ |  feed()            BrowserInput                 person_mask       background_blur
  |------------------>     |                           |                     |
  |                        +--- shared-memory queue --->+-- queue ----------->+
  |                                                                          |
@@ -36,7 +36,7 @@ const config = { pipeline: { name: 'demo', id: 'demo-1', folder: '/tmp/juturna/d
   transport: 'browser',
   nodes: [{ name: 'in',  type: 'BrowserInput',  configuration: {} },
           { name: 'out', type: 'BrowserOutput', configuration: {} }],
-  links: [{ from: 'in', to: 'out' }] }, plugins: ['plugins'] };
+  links: [{ from: 'in', to: 'out' }] } };
 
 const jt   = await Juturna.create();
 const pipe = await jt.pipeline(config);
@@ -51,7 +51,7 @@ await pipe.destroy();
 jt.terminate();
 ```
 
-`browser_input` and `browser_output` are the two ends of the pipeline: what
+`BrowserInput` and `BrowserOutput` are the two ends of the pipeline: what
 the page feeds and what it receives. Between them go the nodes that do the work.
 
 ## Feeding audio from the microphone

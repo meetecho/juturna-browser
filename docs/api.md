@@ -11,7 +11,7 @@ keys described in [Configuration](#configuration).
 
 ## `Juturna`
 
-### `Juturna.create(options?) → Promise<Juturna>`
+### `Juturna.create(options?): Promise<Juturna>`
 
 Starts the Workers, loads Pyodide and installs Juturna in each of them, all in
 parallel. It takes about 3 to 4 seconds, however many Workers there are.
@@ -39,7 +39,7 @@ parallel. It takes about 3 to 4 seconds, however many Workers there are.
   [Lost Workers](guide.md#lost-workers) for what a restart does and does not
   bring back.
 
-### `jt.pipeline(config) → Promise<Pipeline>`
+### `jt.pipeline(config): Promise<Pipeline>`
 
 Builds and warms up the pipeline: it starts the Workers it needs, builds in each
 of them the nodes it hosts, and connects the queues between Workers. One
@@ -54,10 +54,10 @@ Stops every Worker. The pipeline is gone. Call it after `pipe.destroy()`.
 
 ## `Pipeline`
 
-### `pipe.input(name) → { feed, port }`
+### `pipe.input(name): { feed, port }`
 
-The handle of a `browser_input` node. It throws when `name` is not a
-`browser_input` node of this pipeline. The handle stays valid when the Worker
+The handle of a `BrowserInput` node. It throws when `name` is not a
+`BrowserInput` node of this pipeline. The handle stays valid when the Worker
 of the node is rebuilt.
 
 **`feed(message, options?)`** hands a message to the node. `message` is
@@ -78,49 +78,83 @@ going through the page. The producer transfers the buffers it posts or they
 are copied. A port is dead once the Worker of the node is rebuilt: ask for a
 new one in `onWorkerRestarted`.
 
-### `pipe.output(name) → { on }`
+### `pipe.output(name): { on }`
 
-The handle of a `browser_output` node. It throws when `name` is not a
-`browser_output` node of this pipeline.
+The handle of a `BrowserOutput` node. It throws when `name` is not a
+`BrowserOutput` node of this pipeline.
 
-**`on('message', callback) → unsubscribe`** calls `callback(message)` for every
+**`on('message', callback)`** calls `callback(message)` for every
 message the node receives. `message` is `{kind, payload, meta, creator, id,
-created_at}`; arrays are typed arrays. The callback runs on the page.
+created_at}`; arrays are typed arrays. The callback runs on the page. It returns
+the function that removes the listener.
 
-### `pipe.onError(callback) → unsubscribe`
+### `pipe.onError(callback): unsubscribe`
 
 Errors that happen while feeding data (an invalid message, a message that does
 not fit the queues) and the loss of a Worker, as `Error` objects. Without a
 listener they go to `console.error`.
 
-### `pipe.onWorkerLost(callback) → unsubscribe`
+### `pipe.onWorkerLost(callback): unsubscribe`
 
 Calls `callback({worker, reason, willRestart})` when a Worker is lost, see
 [Lost Workers](guide.md#lost-workers). `willRestart` tells whether a new one is
 being built.
 
-### `pipe.onWorkerRestarted(callback) → unsubscribe`
+### `pipe.onWorkerRestarted(callback): unsubscribe`
 
 Calls `callback({worker, attempt})` when a lost Worker has been built again and
 its nodes run. They are new nodes: whatever state the old ones had is gone.
 
-### `pipe.start() → Promise<void>`
+### `pipe.onTelemetry(callback): unsubscribe`
+
+Listens to the telemetry of the Workers, a batch at a time as it is produced:
+`callback({ worker, records })`. The pipeline needs
+`"telemetry": {"name": "browser"}` in its configuration.
+A callback that throws does not keep the others from the batch: its error
+reaches `onError`.
+Batches are delivered as they arrive, and the records are not reordered: those
+of one Worker are in the order it produced them, but their `ts` can still go
+backwards a few times, and batches of different Workers interleave. Sort by `ts`,
+or use `pipe.telemetry()`, which does.
+
+### `pipe.start(): Promise<void>`
 
 Starts the nodes of every Worker and starts pinging the Workers. A pipeline
 that was stopped cannot be started again: destroy it and build another.
 
-### `pipe.stop() → Promise<void>`
+### `pipe.stop(): Promise<void>`
 
 Stops the pipeline in the same order as on desktop, across Workers: the nodes of
 each layer of the graph are sent a stop and joined before the next layer, so
 what an upstream node sent last is still consumed downstream. It takes about
-two seconds per node at the moment. Lost Workers are skipped.
+two seconds per node at most (the join timeout of Juturna). Lost Workers are skipped.
 
-### `pipe.destroy() → Promise<void>`
+### `pipe.destroy(): Promise<void>`
 
 Releases the nodes. It stops the pipeline first if it is running.
 
-### `pipe.status() → Promise<object>`
+### `pipe.telemetry(): Promise<object[]>`
+
+The latest records, all Workers merged and ordered by `ts` (10000 per Worker
+by default, see `max_records` in [Configuration](#configuration): the oldest are
+dropped). Empty when there is no `telemetry` key. Lost and
+restarting Workers are skipped, and a restarted Worker starts again with no
+records.
+
+```js
+{ ts: 1791991365.069,   // seconds, from time.time() (1 ms resolution)
+  evt: 'rx',            // 'rx' or 'tx'
+  node: 'burn', origin: 'in',
+  msg_id: 3, src_id: 3, // id of the message the sender was processing when it
+                        // sent this one (null if none)
+  size: 640,            // payload bytes
+  worker: 'heavy' }
+```
+
+The message ids are counters of one Worker: identify a message by
+`(origin, msg_id)`, not by `msg_id` alone.
+
+### `pipe.status(): Promise<object>`
 
 ```js
 {
@@ -170,6 +204,12 @@ The keys of Juturna that matter here, in a pipeline configuration:
   queues written to from another Worker are rings: the inbound queue of a node
   with an upstream in a different Worker. Every other queue is local.
 
+- **`pipeline.telemetry`** is `{name: 'browser', ...options}`: each Worker keeps
+  the records of its nodes and posts them to the page, which receives them in
+  `pipe.onTelemetry()` and `pipe.telemetry()`. Without the key the telemetry is
+  off. `max_records` (10000) is the number of records each Worker keeps. The
+  `memory` and `csv` managers of Juturna are accepted too, but only the
+  `browser` one posts to the page.
 - **`nodes[].worker`** names the Worker the node runs in (`main` when missing).
   Nodes of different Workers are linked as any other.
 - **`nodes[].type`** is the class of the node: `BrowserInput` and
@@ -203,5 +243,6 @@ the message is dropped.
 | Invalid configuration, a node that cannot be built | `jt.pipeline()` rejects |
 | Invalid message, message too big for the queues | `pipe.onError` |
 | A Python exception inside a node | Logged by Juturna; `status().nodes[...].health` counts it. The node keeps running. |
+| A callback of `onTelemetry` or `output().on` that throws | `pipe.onError` |
 | Loss of a Worker | `pipe.onWorkerLost` and `pipe.onError`; `status()`; `pipe.onWorkerRestarted` if it comes back |
 | `feed()` or `port()` to a lost Worker | throws |

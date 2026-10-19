@@ -54,6 +54,10 @@ def stop():
 def destroy():
     pipe.destroy()
 
+def telemetry():
+    manager = pipe._telemetry_manager
+    return json.dumps(manager.records() if manager else [], default=str)
+
 def status():
     return json.dumps({
         'pipeline': str(pipe._status),
@@ -74,8 +78,9 @@ const COMMANDS = {
     pyodide = await loadPyodide();
     await bootstrapJuturna(pyodide, { base: new URL(base), assets });
     await pyodide.runPythonAsync(PY_RUNTIME);
-    py = Object.fromEntries(['plan', 'create', 'inbox', 'connect', 'feed', 'start', 'stop_layer', 'stop', 'destroy', 'status']
-      .map((name) => [name, pyodide.globals.get(name)]));
+    const names = ['plan', 'create', 'inbox', 'connect', 'feed', 'start', 'stop_layer', 'stop', 'destroy', 'status',
+      'telemetry'];
+    py = Object.fromEntries(names.map((name) => [name, pyodide.globals.get(name)]));
   },
   async plan({ config }) { return JSON.parse(await py.plan.callPromising(config)); },
   async pipeline({ config, worker }) { await py.create.callPromising(config, worker); },
@@ -88,6 +93,7 @@ const COMMANDS = {
   async stop() { await feedChain; await py.stop.callPromising(); },
   async destroy() { await feedChain; await py.destroy.callPromising(); },
   async status() { return JSON.parse(await py.status.callPromising()); },
+  telemetry() { return JSON.parse(py.telemetry()); },
 };
 
 function feed(node, message) {
