@@ -84,6 +84,7 @@
 </div>
 <script type="module">
 import { Juturna } from '../../src/juturna.js';
+import { withTelemetry, showTelemetry } from '../telemetry.js';
 
 const MODEL_ID = {
   it: 'Xenova/opus-mt-en-it',
@@ -167,7 +168,8 @@ $('start').onclick = async () => {
     });
     log('loading juturna and the models (whisper + opus-mt)...');
     jt = await Juturna.create({ workers: ['main', 'asr', 'mt'] });
-    pipe = await jt.pipeline(buildConfig());
+    pipe = await jt.pipeline(withTelemetry(buildConfig()));
+    showTelemetry(pipe);
     input = pipe.input('in');
     pipe.onError((e) => log('ERROR: ' + e.message));
     pipe.output('out').on('message', onTranslation);

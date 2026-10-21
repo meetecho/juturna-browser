@@ -77,6 +77,7 @@
 </div>
 <script type="module">
 import { Juturna } from '../../src/juturna.js';
+import { withTelemetry, showTelemetry } from '../telemetry.js';
 
 const query = new URLSearchParams(location.search);          // ?fps=24&inflight=3&blur=10
 const W = Number(query.get('width') ?? 640), H = Number(query.get('height') ?? 480);
@@ -183,7 +184,8 @@ $('start').onclick = async () => {
     log('loading juturna in 2 workers (main, ml)...');
     const t0 = performance.now();
     jt = await Juturna.create({ workers: ['main', 'ml'] });
-    pipe = await jt.pipeline(buildConfig());
+    pipe = await jt.pipeline(withTelemetry(buildConfig()));
+    showTelemetry(pipe);
     pipe.onError((e) => log('ERROR: ' + e.message));
     pipe.output('out').on('message', onOutput);
     input = pipe.input('in');

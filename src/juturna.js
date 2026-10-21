@@ -5,7 +5,7 @@
 //   const jt   = await Juturna.create();
 //   const pipe = await jt.pipeline(config);
 //   pipe.output('out').on('message', (msg) => ...);   // {kind, payload, meta}
-//   const inp  = pipe.input('in');                    // a browser_input node
+//   const inp  = pipe.input('in');                    // a BrowserInput node
 //   await pipe.start();
 //   inp.feed({ kind: 'audio', payload: { audio, sampling_rate: 16000 } });
 //   await pipe.stop();  await pipe.destroy();  jt.terminate();
@@ -187,8 +187,13 @@ export class Juturna {
   #route(data) {
     if (data.type === 'output') this.#pipeline?._deliver(data.node, data.message);
     else if (data.type === 'error') this.#pipeline?._error(new Error(data.error));
+    else if (data.type === 'telemetry') this.#pipeline?._deliverTelemetry(data);
   }
 }
+
+// same order as the records of the Python side (BrowserTelemetry)
+const TELEMETRY_FIELDS = ['ts', 'evt', 'node', 'origin', 'msg_id', 'src_id', 'size', 'worker'];
+const telemetryRecord = (record) => Object.fromEntries(TELEMETRY_FIELDS.map((field, i) => [field, record[i]]));
 
 class WorkerLink {
   #worker;
@@ -263,6 +268,7 @@ class Pipeline {
   #errorListeners = new Set();
   #lostListeners = new Set();
   #restartedListeners = new Set();
+  #telemetryListeners = new Set();
 
   constructor(jt, configJson, owner, layers, workers, inboxes, writers) {
     const config = JSON.parse(configJson);
@@ -277,7 +283,7 @@ class Pipeline {
   }
 
   /**
-   * Handle to a `browser_input` node.
+   * Handle to a `BrowserInput` node.
    * @returns {{feed: (message: object, options?: {copy?: boolean}) => void,
    *   port: () => MessagePort}}
    */
@@ -306,7 +312,7 @@ class Pipeline {
   }
 
   /**
-   * Handle to a `browser_output` node.
+   * Handle to a `BrowserOutput` node.
    * @returns {{on: (event: 'message', callback: Function) => Function}}
    *   `on` returns the function that removes the listener.
    */
@@ -348,6 +354,16 @@ class Pipeline {
   onWorkerRestarted(callback) {
     this.#restartedListeners.add(callback);
     return () => this.#restartedListeners.delete(callback);
+  }
+
+  /**
+   * Listen to the telemetry of the Workers: `callback({worker, records})`, a
+   * batch at a time as it is produced. The pipeline needs a `telemetry` key in
+   * its configuration. Returns an unsubscribe.
+   */
+  onTelemetry(callback) {
+    this.#telemetryListeners.add(callback);
+    return () => this.#telemetryListeners.delete(callback);
   }
 
   /** Every Worker starts at once: what a node sends to one still to start
@@ -394,6 +410,26 @@ class Pipeline {
       },
       lost: Object.fromEntries(this.#lost),
     };
+  }
+
+  /**
+   * The latest telemetry records (10000 per Worker by default), all Workers
+   * merged and ordered by time. Empty when the pipeline has no `telemetry` key.
+   * @returns {Promise<{ts: number, evt: string, node: string, origin: string,
+   *   msg_id: number, src_id: number|null, size: number, worker: string}[]>}
+   */
+  async telemetry() {
+    const alive = this.#workers.filter((name) => !this.#lost.has(name) && !this.#restarting.has(name));
+    // a Worker lost while we ask is skipped like the ones lost before
+    const parts = await Promise.all(alive.map((name) => this.#jt._link(name).call('telemetry').catch(() => [])));
+    return parts.flat().map(telemetryRecord).sort((a, b) => a.ts - b.ts);
+  }
+
+  _deliverTelemetry({ worker, records }) {
+    const batch = { worker, records: records.map(telemetryRecord) };
+    for (const callback of this.#telemetryListeners) {
+      try { callback(batch); } catch (error) { this._error(error); }
+    }
   }
 
   // a listener that throws must not keep the others from the message

@@ -7,21 +7,12 @@ src/         juturna.js (the API), juturna-worker.js (the Worker side),
              bootstrap.js (installs Juturna in Pyodide), ring.js (closes and repairs queues)
 build/       build.py (the bundle), vendor.py (the third-party files nodes declare)
 examples/    microphone.html, video-blur/, noise-suppression/, live-translation/,
-             plugins/ (nodes shared by more than one example)
+             live-translation-kroko/, live-transcription-kroko/, telemetry.js (the
+             `?telemetry` panel), plugins/ (nodes shared by more than one example)
 test/        browser test pages, and test/plugins/ (nodes used by them)
 serve.py     local server with the isolation headers
 docs/        this documentation
 ```
-
-## Requirements
-
-- Chrome 137 or later, for JSPI. Tested on Chrome 151.
-- Pyodide 314 or later; the Workers load it from the jsDelivr CDN.
-- A checkout of the [juturna](https://github.com/meetecho/juturna) repository
-  (3.0.0 or later, which has the browser transport) and one of
-  [juturna-nodes](https://github.com/meetecho/juturna-nodes) (it has
-  `BrowserInput` and `BrowserOutput`), and Python 3.12 with `pip` to build a wheel
-  of Juturna.
 
 ## Build
 
@@ -93,21 +84,8 @@ site-packages of its virtual file system with `unpackArchive` (see `src/bootstra
 nothing to resolve, and a package manager would only add its load time. `av`,
 `requests` and `grpc` have no Pyodide build and Juturna does not import them
 unless a node needs them; `numpy` comes from Pyodide. The wheel and the archive
-are fetched while Pyodide loads. `websockets` is no longer installed: no
-pipeline imports it, and installing it meant a download from PyPI in every
-Worker.
-
-## Run
-
-```
-python3 serve.py 8765
-```
-
-Then open `http://localhost:8765/examples/microphone.html`,
-`http://localhost:8765/examples/video-blur/index.html`,
-`http://localhost:8765/examples/noise-suppression/index.html` or
-`http://localhost:8765/examples/live-translation/{index,text}.html`. The
-server does not cache, so a rebuilt `dist/` is always the one served.
+are fetched while Pyodide loads. `websockets` is not installed: no
+pipeline imports it.
 
 ## Tests
 
@@ -121,6 +99,7 @@ driving the browser.
 | `test/bootstrap.html` | default | Juturna installs from the bundle; a pipeline runs |
 | `test/facade.html` | `--test-plugins` | the API in one Worker: order, values, `copy`, `port()`, errors, status |
 | `test/multi-worker.html` | `--test-plugins` | a pipeline across Workers, the stop order, isolation of a node that burns the CPU |
+| `test/telemetry.html` | `--test-plugins` | `pipe.telemetry()` and `pipe.onTelemetry()` across two Workers with `{name: 'browser'}`, and the pipeline without the `telemetry` key |
 | `test/large-frames.html` | `--test-plugins` | a 720p frame across Workers with a bigger `max_payload_bytes`, the error without it, and no limit inside a Worker |
 | `test/local-queue.html` | default | queues local to a Worker: order, capacity, close, and the refusal to be shared |
 | `test/supervisor.html` | `--test-plugins` | loss of a Worker: detection, closed queues, `stop()`; and the control without closing |
@@ -130,18 +109,5 @@ driving the browser.
 | `test/video-blur.html` | `--test-plugins --plugins examples/video-blur/plugins`, and `build/vendor.py examples/video-blur/plugins` | the video pipeline with synthetic frames: `?fps=24&inflight=3` |
 | `test/video-blur-canvas.html` | same as `video-blur.html` | same synthetic frames, but `background_blur` is dropped from the pipe and the compositing (background blur, soft mask edge) happens in the page's own canvas instead - compares directly against `video-blur.html`'s numbers |
 
-A background tab limits `setTimeout` to once a second: the tests that need
+Serve the pages with `python3 serve.py 8765` (see the README). A background tab limits `setTimeout` to once a second: the tests that need
 regular timing take it from a Worker.
-
-## Numbers
-
-Measured on a 12-core desktop, Chrome on Linux:
-
-| | |
-|---|---|
-| Start of one Worker (Pyodide + Juturna) | 2.8 s (3.2 s with micropip); several in parallel take about the same |
-| A message through a queue (put + get) | 0.35 ms for 6.4 KB, 0.9 ms for 1 MB |
-| A 720p RGBA frame from `in` to `out` | 31 ms |
-| Video blur pipeline at 24 fps | 24.6 fps out, delay 62 ms (72 ms with the camera), about 1.5% of the frames dropped |
-| Loss of a Worker, detected | about 1.6 s with a 200 ms ping and a 1.5 s timeout |
-| Loss of a Worker to its restart | about 3.7 s |

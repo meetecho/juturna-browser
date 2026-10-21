@@ -59,6 +59,7 @@
 </div>
 <script type="module">
 import { Juturna } from '../../src/juturna.js';
+import { withTelemetry, showTelemetry } from '../telemetry.js';
 
 const RATE = 16000;
 const $ = (id) => document.getElementById(id);
@@ -103,7 +104,8 @@ $('start').onclick = async () => {
     });
     log('loading juturna and the Kroko streaming model...');
     jt = await Juturna.create({ workers: ['main', 'asr'] });
-    pipe = await jt.pipeline(buildConfig());
+    pipe = await jt.pipeline(withTelemetry(buildConfig()));
+    showTelemetry(pipe);
     input = pipe.input('in');
     pipe.onError((e) => log('ERROR: ' + e.message));
     pipe.output('out').on('message', onTranscript);

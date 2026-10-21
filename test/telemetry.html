@@ -1,0 +1,59 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>telemetry test</title></head>
+<body><pre id="out">running...</pre>
+<script type="module">
+import { Juturna } from '../src/juturna.js';
+
+window.__result = null;
+const checks = {};
+const check = (n, ok, d) => { checks[n] = ok ? 'ok' : 'FAIL' + (d !== undefined ? ': ' + JSON.stringify(d) : ''); };
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+const node = (name, type, extra = {}) => ({ name, type, configuration: type.endsWith('Burn') ? { burn_ms: 0 } : {}, ...extra });
+const config = (telemetry) => ({ pipeline: { name: 'tl', id: 'tl-1', folder: '/tmp/juturna/tl', transport: 'browser',
+  ...(telemetry ? { telemetry: { name: 'browser' } } : {}),
+  nodes: [node('in', 'BrowserInput'), node('burn', 'extensions.nodes.Burn', { worker: 'heavy' }), node('out', 'BrowserOutput')],
+  links: [{ from: 'in', to: 'burn' }, { from: 'burn', to: 'out' }] } });
+const audio = (v) => ({ kind: 'audio', payload: { audio: new Float32Array(160).fill(v), sampling_rate: 16000 } });
+
+async function run(telemetry) {
+  const jt = await Juturna.create({ workers: ['main', 'heavy'] });
+  try {
+    const pipe = await jt.pipeline(config(telemetry));
+    const pushed = [], got = [];
+    const off = pipe.onTelemetry((b) => pushed.push(b));
+    pipe.output('out').on('message', (m) => got.push(m));
+    const inp = pipe.input('in');
+    await pipe.start();
+    for (let i = 0; i < 20; i++) inp.feed({ ...audio(i), meta: { i } });
+    for (let i = 0; i < 100 && got.length < 20; i++) await sleep(100);
+    await pipe.stop();
+    const records = await pipe.telemetry();
+    off();
+    await pipe.destroy();
+    return { pushed, got, records };
+  } finally {
+    jt.terminate();
+  }
+}
+
+try {
+  const on = await run(true);
+  const fields = Object.keys(on.records[0] || {}).join();
+  check('messages_arrive', on.got.length === 20, on.got.length);
+  check('record_fields', fields === 'ts,evt,node,origin,msg_id,src_id,size,worker', fields);
+  check('both_workers_present', new Set(on.records.map((r) => r.worker)).size === 2, [...new Set(on.records.map((r) => r.worker))]);
+  check('worker_matches_node', on.records.every((r) => (r.node === 'burn') === (r.worker === 'heavy')));
+  check('ordered_by_time', on.records.every((r, i) => i === 0 || on.records[i - 1].ts <= r.ts));
+  check('every_hop_recorded', ['in', 'burn', 'out'].every((n) => on.records.some((r) => r.node === n)));
+  const pushedCount = on.pushed.reduce((n, b) => n + b.records.length, 0);
+  check('onTelemetry_gets_every_record', pushedCount === on.records.length, [pushedCount, on.records.length]);
+  check('onTelemetry_batch_shape', on.pushed.every((b) => typeof b.worker === 'string' && b.records.every((r) => r.worker === b.worker)));
+
+  const off = await run(false);
+  check('off_without_key', off.records.length === 0 && off.pushed.length === 0, [off.records.length, off.pushed.length]);
+  check('off_pipeline_still_runs', off.got.length === 20, off.got.length);
+  window.__result = { checks, sample: on.records.slice(0, 3), count: on.records.length };
+} catch (e) { window.__result = { fatal: String(e && e.stack || e), checks }; }
+document.getElementById('out').textContent = JSON.stringify(window.__result, null, 1);
+</script></body></html>
