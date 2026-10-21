@@ -7,21 +7,12 @@ src/         juturna.js (the API), juturna-worker.js (the Worker side),
              bootstrap.js (installs Juturna in Pyodide), ring.js (closes and repairs queues)
 build/       build.py (the bundle), vendor.py (the third-party files nodes declare)
 examples/    microphone.html, video-blur/, noise-suppression/, live-translation/,
-             plugins/ (nodes shared by more than one example)
+             live-translation-kroko/, live-transcription-kroko/, telemetry.js (the
+             `?telemetry` panel), plugins/ (nodes shared by more than one example)
 test/        browser test pages, and test/plugins/ (nodes used by them)
 serve.py     local server with the isolation headers
 docs/        this documentation
 ```
-
-## Requirements
-
-- Chrome 137 or later, for JSPI. Tested on Chrome 151.
-- Pyodide 314 or later; the Workers load it from the jsDelivr CDN.
-- A checkout of the [juturna](https://github.com/meetecho/juturna) repository
-  (3.0.0 or later, which has the browser transport) and one of
-  [juturna-nodes](https://github.com/meetecho/juturna-nodes) (it has
-  `BrowserInput` and `BrowserOutput`), and Python 3.12 with `pip` to build a wheel
-  of Juturna.
 
 ## Build
 
@@ -96,20 +87,6 @@ unless a node needs them; `numpy` comes from Pyodide. The wheel and the archive
 are fetched while Pyodide loads. `websockets` is not installed: no
 pipeline imports it.
 
-## Run
-
-```
-python3 serve.py 8765
-```
-
-Then open `http://localhost:8765/examples/microphone.html`,
-`http://localhost:8765/examples/video-blur/index.html`,
-`http://localhost:8765/examples/noise-suppression/index.html` or
-`http://localhost:8765/examples/live-translation/{index,text}.html`,
-`http://localhost:8765/examples/live-transcription-kroko/index.html` or
-`http://localhost:8765/examples/live-translation-kroko/index.html`. The
-server does not cache, so a rebuilt `dist/` is always the one served.
-
 ## Tests
 
 The tests are pages that run in the browser and write their outcome in
@@ -132,18 +109,5 @@ driving the browser.
 | `test/video-blur.html` | `--test-plugins --plugins examples/video-blur/plugins`, and `build/vendor.py examples/video-blur/plugins` | the video pipeline with synthetic frames: `?fps=24&inflight=3` |
 | `test/video-blur-canvas.html` | same as `video-blur.html` | same synthetic frames, but `background_blur` is dropped from the pipe and the compositing (background blur, soft mask edge) happens in the page's own canvas instead - compares directly against `video-blur.html`'s numbers |
 
-A background tab limits `setTimeout` to once a second: the tests that need
+Serve the pages with `python3 serve.py 8765` (see the README). A background tab limits `setTimeout` to once a second: the tests that need
 regular timing take it from a Worker.
-
-## Numbers
-
-Measured on a 12-core desktop, Chrome on Linux:
-
-| | |
-|---|---|
-| Start of one Worker (Pyodide + Juturna) | 2.8 s; several in parallel take about the same |
-| A message through a queue (put + get) | 0.35 ms for 6.4 KB, 0.9 ms for 1 MB |
-| A 720p RGBA frame from `in` to `out` | 31 ms |
-| Video blur pipeline at 24 fps | 24.6 fps out, delay 62 ms (72 ms with the camera), about 1.5% of the frames dropped |
-| Loss of a Worker, detected | about 1.6 s with a 200 ms ping and a 1.5 s timeout |
-| Loss of a Worker to its restart | about 3.7 s |

@@ -38,7 +38,7 @@ jt.terminate();
 - [API reference](docs/api.md): every function, the configuration keys, the messages.
 - [Guide](docs/guide.md): how it works, feeding audio and video, several Workers, lost
   Workers, writing a node.
-- [Development](docs/development.md): build, run, tests, numbers.
+- [Development](docs/development.md): build options, third-party files, tests.
 
 ## Requirements
 
@@ -69,6 +69,10 @@ python3 serve.py 8765
 
 - <http://localhost:8765/examples/microphone.html>: microphone through the
   pipeline, plus an image round trip. Accept the microphone permission.
+- The pages in `examples/` (`video-blur/`, `noise-suppression/`, `live-translation/`,
+  `live-translation-kroko/`, `live-transcription-kroko/`) are the demos. Add
+  `?telemetry` to the URL of any of them to see the messages each node receives and
+  sends, live under the page (see [Telemetry](#telemetry)).
 - The pages in `test/` check the bootstrap, the facade and the multi-Worker
   pipeline; they need `python3 build/build.py --test-plugins` first and write
   their outcome in `window.__result`.
@@ -157,6 +161,22 @@ browser can use), so the local branch never loads `tokenizer.json`. A
 model's Worker (first load) takes about 2.5 s; a 4 s window of
 transcription and translation together, about 3 s, on the JFK sample also
 used by `test/live-translation.html`.
+
+## Telemetry
+
+With `"telemetry": {"name": "browser"}` in the `pipeline` section of the configuration,
+every Worker records the messages its nodes receive (`rx`) and send (`tx`) and posts
+them to the page. Without the key the telemetry is off.
+
+```js
+const stop = pipe.onTelemetry(({ worker, records }) => { /* a batch as it is produced */ });
+const latest = await pipe.telemetry();   // all Workers merged and sorted by ts
+```
+
+A record is `{ ts, evt, node, origin, msg_id, src_id, size, worker }`; the
+[API reference](docs/api.md#pipetelemetry-promiseobject) has the details. The example
+pages turn it on with `?telemetry` and print a table per node (`rx`, `tx`, bytes sent,
+`tx/s`), refreshed every second (`examples/telemetry.js`).
 
 ## Messages
 
