@@ -10,6 +10,7 @@
 <pre id="log"></pre>
 <script type="module">
 import { Juturna } from '../src/juturna.js';
+import { withTelemetry, showTelemetry } from './telemetry.js';
 
 const RATE = 16000, CHUNK = 1600;                    // 100 ms
 const $ = (id) => document.getElementById(id);
@@ -33,7 +34,8 @@ $('start').onclick = async () => {
     stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: false, noiseSuppression: false } });
     log('loading juturna...');
     jt = await Juturna.create();
-    pipe = await jt.pipeline(config);
+    pipe = await jt.pipeline(withTelemetry(config));
+    showTelemetry(pipe);
     input = pipe.input('in');
     pipe.onError((e) => log('ERROR: ' + e.message));
     pipe.output('out').on('message', onOutput);
