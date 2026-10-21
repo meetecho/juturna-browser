@@ -56,7 +56,11 @@ def destroy():
 
 def telemetry():
     manager = pipe._telemetry_manager
-    return json.dumps(manager.records() if manager else [], default=str)
+    if not manager:
+        return '[]'
+    for node in pipe._nodes.values():
+        node.flush_telemetry()
+    return json.dumps(manager.records(), default=str)
 
 def status():
     return json.dumps({
