@@ -208,8 +208,9 @@ The keys of Juturna that matter here, in a pipeline configuration:
   the records of its nodes and posts them to the page, which receives them in
   `pipe.onTelemetry()` and `pipe.telemetry()`. Without the key the telemetry is
   off. `max_records` (10000) is the number of records each Worker keeps. The
-  `memory` and `csv` managers of Juturna are accepted too, but only the
-  `browser` one posts to the page.
+  `memory` manager of Juturna is accepted too, but it posts nothing to the
+  page. `csv` is refused: it needs a shared file system, which the browser
+  transport does not offer, and `jt.pipeline()` rejects.
 - **`nodes[].worker`** names the Worker the node runs in (`main` when missing).
   Nodes of different Workers are linked as any other.
 - **`nodes[].type`** is the class of the node: `BrowserInput` and
