@@ -213,6 +213,9 @@ The keys of Juturna that matter here, in a pipeline configuration:
   transport does not offer, and `jt.pipeline()` rejects.
 - **`nodes[].worker`** names the Worker the node runs in (`main` when missing).
   Nodes of different Workers are linked as any other.
+- **`nodes[].configuration`** holds the arguments of the node. The URLs in it
+  are loaded as scripts: see [A configuration is code](guide.md#a-configuration-is-code)
+  before building one from anything the page did not write.
 - **`nodes[].type`** is the class of the node: `BrowserInput` and
   `BrowserOutput` come with juturna-nodes; the others are added with
   `build/build.py --plugins` and are named `extensions.nodes.<Class>`.
