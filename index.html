@@ -195,26 +195,25 @@
 <section id="run-it">
   <div class="wrap">
     <h2>Run it yourself</h2>
-    <p class="section-lede">A checkout of
-      <a href="https://github.com/meetecho/juturna">juturna</a> (branch
-      <code>feat/transport-browser</code> as of now) and Python 3.12 are the only
-      requirements beyond Chrome 137+.</p>
+    <p class="section-lede">Checkouts of
+      <a href="https://github.com/meetecho/juturna">juturna</a> (3.0.0 or later) and of
+      juturna-nodes, and Python 3.12, are the only requirements beyond Chrome 137+.</p>
     <ol class="steps">
       <li><strong>Vendor the third-party files</strong> each demo declares (models,
         onnxruntime-web, transformers.js):
-<pre>python3 build/vendor.py examples/live-translation/plugins examples/video-blur/plugins examples/noise-suppression/plugins</pre>
+<pre>python3 build/vendor.py examples/live-translation/plugins examples/video-blur/plugins examples/noise-suppression/plugins examples/plugins</pre>
         The Kroko demo's model is different: it is compiled into its WASM runtime,
         not fetched by <code>vendor.py</code> - see
-        <a href="examples/live-transcription-kroko/plugins/nodes/proc/_transcriber_kroko_wasm/README.md">its node's README</a>
+        <a href="examples/plugins/nodes/proc/_transcriber_kroko_wasm/README.md">its node's README</a>
         for the (one-time) build step.
       </li>
       <li><strong>Build the wheel and the plugins bundle.</strong> <code>--plugins</code>
         repeats, so one bundle can serve every demo:
-<pre>python3 build/build.py --juturna ~/path/to/juturna \
+<pre>python3 build/build.py --juturna ~/path/to/juturna --nodes ~/path/to/juturna_nodes \
     --plugins examples/live-translation/plugins \
     --plugins examples/video-blur/plugins \
     --plugins examples/noise-suppression/plugins \
-    --plugins examples/live-transcription-kroko/plugins</pre>
+    --plugins examples/plugins</pre>
       </li>
       <li><strong>Serve it</strong> (the isolation headers <code>SharedArrayBuffer</code>
         needs are only in this server, not a generic static host):

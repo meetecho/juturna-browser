@@ -188,3 +188,16 @@ A node runs its `update()` for one message at a time and keeps the Worker's
 thread while it does. Keep an eye on what it costs per message: at 24 fps it
 must stay well under 42 ms, including the time to receive and send the frame
 (about 1 ms per hop for 640×480 RGBA).
+
+## A configuration is code
+
+Treat a pipeline configuration as code of the page, not as data. The URLs a
+node gets in its `configuration` are loaded as scripts: `person_mask` imports
+the module at `ort_url`, `transcriber_kroko_wasm` evaluates the files at
+`asr_helper_url` and `wasm_main_url`. They run in the Worker with the origin of
+the page, so they can fetch whatever the page can. A configuration can also
+build any node of the bundle, with any argument.
+
+Never build a configuration, or a part of one, from what a user or another
+site sends: write it in the page, and let the input choose among values the
+page knows (a language, a model of a list), not supply URLs or node types.
