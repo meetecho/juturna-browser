@@ -80,6 +80,7 @@ def build_plugins(
     target = DIST / 'plugins.zip'
     package = nodes / 'src' / 'juturna' / 'nodes'
     registry = {}
+    folders = set()
 
     with zipfile.ZipFile(target, 'w', zipfile.ZIP_DEFLATED) as zf:
         # the registry lists every node lazily: importing it loads none
@@ -90,8 +91,16 @@ def build_plugins(
 
         for folder in [*([TEST_PLUGINS] if test_plugins else []), *extra]:
             for node in _node_folders(folder.resolve()):
+                entry = _register(node)
+
+                # the second one would replace the first, in the registry or
+                # in the archive, and the pipeline would run the wrong node
+                if entry.keys() & registry.keys() or node.name in folders:
+                    sys.exit(f'error: node {node} is already in the bundle')
+
                 _add(zf, node, node.parent, EXTENSIONS)
-                registry |= _register(node)
+                registry |= entry
+                folders.add(node.name)
 
         if registry:
             entries = '\n'.join(
