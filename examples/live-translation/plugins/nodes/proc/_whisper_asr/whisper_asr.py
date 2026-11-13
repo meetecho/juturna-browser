@@ -110,6 +110,12 @@ class WhisperASR(Node[AudioPayload, ObjectPayload]):
         kwargs : dict
             Superclass arguments.
 
+        Raises
+        ------
+        ValueError
+            If ``overlap_seconds`` is negative or not less than
+            ``window_seconds``.
+
         """
         super().__init__(**kwargs)
 
@@ -121,6 +127,14 @@ class WhisperASR(Node[AudioPayload, ObjectPayload]):
         self._language = language
         self._window = int(window_seconds * SAMPLING_RATE)
         self._overlap = int(overlap_seconds * SAMPLING_RATE)
+
+        # in samples, as update() counts: an overlap as long as the window
+        # would never let it move on
+        if not 0 <= self._overlap < self._window:
+            raise ValueError(
+                f"overlap_seconds ({overlap_seconds}) must be at least 0 and "
+                f"less than window_seconds ({window_seconds})"
+            )
         self._max_threads = max_threads
 
         self._asr = None

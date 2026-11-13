@@ -15,7 +15,7 @@ mask is blended, the rest is copied from the frame or from the blurred image.
 - `downscale`: factor by which the frame is reduced before blurring, an even
   number (default 4)
 - `radius`: radius of each box blur pass, in pixels of the reduced frame (2, at
-  most 4)
+  most 7)
 - `passes`: number of box blur passes (3)
 
 ## Input message

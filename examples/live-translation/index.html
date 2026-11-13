@@ -211,9 +211,16 @@ function onBlock(block) {
   pending = merged.slice(offset);
 }
 
+// what a model wrote is text, never markup
+function translated(payload) {
+  const source = document.createElement('b');
+  source.textContent = payload.source_text;
+  return [source, document.createElement('br'), ` > ${payload.text}`];
+}
+
 function onTranslation({ payload }) {
   const line = document.createElement('p');
-  line.innerHTML = `<b>${payload.source_text}</b><br> > ${payload.text}`;
+  line.append(...translated(payload));
   $('lines').appendChild(line);
 }
 

@@ -36,7 +36,9 @@ _LOAD = """
   // onnxruntime-web's own min(4, ceil(cores/2)) default.
   const cores = navigator.hardwareConcurrency || 4;
   ort.env.wasm.numThreads = maxThreads ?? Math.min(4, Math.ceil(cores / 2));
-  const bytes = new Uint8Array(await (await fetch(modelUrl)).arrayBuffer());
+  const resp = await fetch(modelUrl);
+  if (!resp.ok) throw new Error(`${modelUrl}: HTTP ${resp.status}`);
+  const bytes = new Uint8Array(await resp.arrayBuffer());
   const session = await ort.InferenceSession.create(bytes, {
     executionProviders: ['wasm'],
   });

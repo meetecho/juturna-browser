@@ -46,10 +46,17 @@ _LOAD = """
       reject(new Error('sherpa-onnx-wasm aborted: ' + reason));
   });
 
-  const asrHelperSrc = await (await fetch(asrHelperUrl)).text();
+  // a missing file must say so, not be evaluated as a script
+  const text = async (url) => {
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error(`${url}: HTTP ${resp.status}`);
+    return resp.text();
+  };
+
+  const asrHelperSrc = await text(asrHelperUrl);
   (0, eval)(asrHelperSrc); // defines global createOnlineRecognizer/OnlineRecognizer/OnlineStream
 
-  const mainSrc = await (await fetch(mainUrl)).text();
+  const mainSrc = await text(mainUrl);
   (0, eval)(mainSrc); // runs createWasm(); -> fetches .wasm and the model-baked .data
 
   await readyPromise;

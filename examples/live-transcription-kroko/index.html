@@ -159,9 +159,12 @@ function onTranscript({ payload, meta }) {
     const line = document.createElement('p');
     line.textContent = payload.text;
     $('lines').prepend(line);
-    $('current').innerHTML = '';
+    $('current').replaceChildren();
   } else {
-    $('current').innerHTML = `<p>${payload.text}</p>`;
+    // what the model wrote is text, never markup
+    const preview = document.createElement('p');
+    preview.textContent = payload.text;
+    $('current').replaceChildren(preview);
   }
 }
 
