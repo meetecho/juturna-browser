@@ -5,8 +5,8 @@
 // in(main) -> asr(Worker "asr", whisper_asr) -> mt(Worker "mt", translate_opus, en->it) -> out(main)
 // Plumbing only: silence/noise proves nothing about transcription quality, only
 // that windows/overlap/text-passing/errors work. Needs a bundle built with
-// --plugins examples/live-translation/plugins, and
-// build/vendor.py examples/live-translation/plugins.
+// --plugins examples/live-translation/plugins --plugins examples/plugins, and
+// build/vendor.py examples/live-translation/plugins examples/plugins.
 import { Juturna } from '../src/juturna.js';
 
 window.__result = null;

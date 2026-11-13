@@ -2,12 +2,11 @@
 <html><head><meta charset="utf-8"><title>video blur canvas-compositing test</title></head>
 <body><pre id="out">running...</pre>
 <script type="module">
-// DIAGNOSTICO TEMPORANEO, non committare. Stessa misura sintetica di
-// test/video-blur.html (stessi ?fps=/?n=/?inflight=, stesso frame
-// sintetico), ma con la pipe ridotta a in->mask->out e il compositing
-// (blur di sfondo + bordi sfumati) fatto qui in JS via canvas invece che
-// dal nodo background_blur in Python/numpy - per confrontare fps/lat/ms a
-// parita' di condizioni con test/video-blur.html.
+// The synthetic measure of test/video-blur.html (same ?fps=, ?n=, ?inflight=,
+// same frame), with the pipeline reduced to in -> mask -> out and the
+// compositing (background blur, soft mask edge) done here on a canvas instead
+// of in the background_blur node: its fps, latency and ms compare directly
+// with those of test/video-blur.html.
 import { Juturna } from '../src/juturna.js';
 
 window.__result = null;
