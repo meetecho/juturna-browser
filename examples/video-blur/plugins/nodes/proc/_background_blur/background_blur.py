@@ -30,7 +30,8 @@ class BackgroundBlur(Node[ImagePayload, ImagePayload]):
             Factor by which the frame is reduced before blurring, an even
             number.
         radius : int
-            Radius, in pixels of the reduced frame, of each box blur pass.
+            Radius, in pixels of the reduced frame, of each box blur pass, 7
+            at most.
         passes : int
             Number of box blur passes.
         kwargs : dict
@@ -39,13 +40,18 @@ class BackgroundBlur(Node[ImagePayload, ImagePayload]):
         Raises
         ------
         ValueError
-            If ``downscale`` is not an even number of at least 2.
+            If ``downscale`` is not an even number of at least 2, or
+            ``radius`` is not between 0 and 7.
 
         """
         super().__init__(**kwargs)
 
         if downscale < 2 or downscale % 2:
             raise ValueError(f'downscale must be even and >= 2: {downscale}')
+
+        # the sums of a box blur are 16 bits wide, see _box_blur
+        if not 0 <= radius <= 7:
+            raise ValueError(f'radius must be between 0 and 7: {radius}')
 
         self._downscale = downscale
         self._radius = radius
@@ -129,7 +135,7 @@ class BackgroundBlur(Node[ImagePayload, ImagePayload]):
 
 def _box_blur(image: np.ndarray, radius: int) -> np.ndarray:
     """Box blur in 16-bit sums: (2 * radius + 1) ** 2 values of at most 255
-    must fit in 65535, so radius <= 4."""
+    must fit in 65535, so radius <= 7."""
     size = 2 * radius + 1
     padded = np.pad(image, ((radius, radius), (radius, radius), (0, 0)), 'edge')
 

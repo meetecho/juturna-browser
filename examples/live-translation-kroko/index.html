@@ -199,19 +199,28 @@ function onBlock(block) {
   pending = merged.slice(offset);
 }
 
+// what a model wrote is text, never markup
+function translated(payload) {
+  const source = document.createElement('b');
+  source.textContent = payload.source_text;
+  return [source, document.createElement('br'), ` > ${payload.text}`];
+}
+
 function onTranslation({ payload }) {
   // 'out' gets two kinds of message: asr's own transcript (partial or
   // final, no source_text - the live preview) and mt's translation
   // (only for a final transcript, has source_text - the permanent line).
   if (payload.source_text === undefined) {
-    $('current').innerHTML = `<p>${payload.text}</p>`;
+    const preview = document.createElement('p');
+    preview.textContent = payload.text;
+    $('current').replaceChildren(preview);
     return;
   }
 
   const line = document.createElement('p');
-  line.innerHTML = `<b>${payload.source_text}</b><br> > ${payload.text}`;
+  line.append(...translated(payload));
   $('lines').appendChild(line);
-  $('current').innerHTML = '';
+  $('current').replaceChildren();
 }
 
 

@@ -175,16 +175,25 @@ $('stop').onclick = async () => {
   setControlsDisabled(false);
 };
 
+// what a model wrote or the user typed is text, never markup
+function translated(payload) {
+  const source = document.createElement('b');
+  source.textContent = payload.source_text;
+  return [source, document.createElement('br'), ` > ${payload.text}`];
+}
+
 function onTranslation({ payload, meta }) {
   if (meta && meta.final) {
     const line = document.createElement('p');
-    line.innerHTML = `<b>${payload.source_text}</b><br> > ${payload.text}`;
+    line.append(...translated(payload));
     $('lines').prepend(line);
     $('current').textContent = '';
     $('status').textContent = 'ready, type something.';
   } else {
     // Not final: overwrites the current line, only Enter fixes it below.
-    $('current').innerHTML = `<p><b>${payload.source_text}</b><br> > ${payload.text}</p>`;
+    const preview = document.createElement('p');
+    preview.append(...translated(payload));
+    $('current').replaceChildren(preview);
     $('status').textContent = 'ready, type something.';
   }
 }

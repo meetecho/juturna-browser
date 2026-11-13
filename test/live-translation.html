@@ -78,6 +78,18 @@ try {
   // Left to code review, per the project's own test convention.
 
   await pipe.stop(); await pipe.destroy(); jt.terminate();
+
+  // 3. an overlap as long as the window would transcribe it for ever: refused
+  const jt2 = await Juturna.create();
+  const stuck = { pipeline: { name: 'st', id: 'st-1', folder: '/tmp/juturna/st', transport: 'browser',
+    nodes: [{ name: 'in', type: 'BrowserInput', configuration: {} },
+            { name: 'asr', type: 'extensions.nodes.WhisperASR',
+              configuration: { ...asrUrls, window_seconds: 2.0, overlap_seconds: 2.0 } },
+            { name: 'out', type: 'BrowserOutput', configuration: {} }],
+    links: [{ from: 'in', to: 'asr' }, { from: 'asr', to: 'out' }] } };
+  const refused = await jt2.pipeline(stuck).then(() => 'built', (e) => e.message);
+  check('overlap_as_long_as_the_window_refused', /overlap_seconds/.test(refused), refused);
+  jt2.terminate();
 } catch (e) { checks.fatal = String(e && e.stack || e); }
 window.__result = { timings, checks };
 document.getElementById('out').textContent = JSON.stringify(window.__result, null, 1);
