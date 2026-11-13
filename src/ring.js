@@ -3,20 +3,20 @@
 // The layout is the one of the browser transport of Juturna: a header of int32
 // (the fourth is the CLOSED flag), then the slots, each starting with 9 int32
 // (the last is the sequence number producers and the consumer wait on) followed
-// by the metadata and payload areas. The header has 7 int32 in Juturna 2.x and
-// 8 in 3.x: its length is read from the size of the buffer, not assumed.
+// by the metadata and payload areas.
+const HEADER_INT32 = 8;
 const CLOSED = 3;
 const SLOT_META_INT32 = 9;
 const SLOT_SEQ = 8;
 
-// int32 before the first slot, from what is left of the buffer after the slots
+// the size of a slot, checked against the buffer: a layout that changed in
+// Juturna must stop here, not write in the middle of a slot
 function layout({ sab, capacity, max_meta_json_bytes, max_payload_bytes }) {
   const slotBytes = SLOT_META_INT32 * 4 + max_meta_json_bytes + max_payload_bytes;
-  const headerBytes = sab.byteLength - capacity * slotBytes;
-  if (!Number.isInteger(headerBytes / 4) || headerBytes < 28) {
+  if (sab.byteLength !== HEADER_INT32 * 4 + capacity * slotBytes) {
     throw new Error(`unknown queue layout: ${sab.byteLength} bytes for ${capacity} slots of ${slotBytes}`);
   }
-  return { slotBytes, headerInt32: headerBytes / 4 };
+  return slotBytes;
 }
 
 /**
@@ -27,12 +27,12 @@ function layout({ sab, capacity, max_meta_json_bytes, max_payload_bytes }) {
  *   max_payload_bytes: number}} handle what `queue_handle()` returned
  */
 export function poisonRing(handle) {
-  const { slotBytes, headerInt32 } = layout(handle);
+  const slotBytes = layout(handle);
   const cells = new Int32Array(handle.sab);
   Atomics.store(cells, CLOSED, 1);
 
   for (let slot = 0; slot < handle.capacity; slot++) {
-    Atomics.notify(cells, headerInt32 + slot * slotBytes / 4 + SLOT_SEQ);
+    Atomics.notify(cells, HEADER_INT32 + slot * slotBytes / 4 + SLOT_SEQ);
   }
 }
 
@@ -44,11 +44,11 @@ const COUNT = 2;
 // position to the head, the slots whose sequence number is still the ticket.
 function abandoned(cells, handle) {
   const { capacity } = handle;
-  const { slotBytes, headerInt32 } = layout(handle);
+  const slotBytes = layout(handle);
   const head = Atomics.load(cells, HEAD);
   const found = [];
   for (let ticket = Atomics.load(cells, TAIL); ticket !== head && found.length <= capacity; ticket = (ticket + 1) | 0) {
-    const first = headerInt32 + ((ticket >>> 0) % capacity) * slotBytes / 4;
+    const first = HEADER_INT32 + ((ticket >>> 0) % capacity) * slotBytes / 4;
     if (Atomics.load(cells, first + SLOT_SEQ) === ticket) found.push({ ticket, first });
   }
   return found;
