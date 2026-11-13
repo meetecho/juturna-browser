@@ -12,7 +12,6 @@ test/) in a recent Chrome.
 """
 
 import http.server
-import socketserver
 import sys
 
 
@@ -27,9 +26,9 @@ class COOPCOEPRequestHandler(http.server.SimpleHTTPRequestHandler):
 def main():
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 8000
 
-    socketserver.TCPServer.allow_reuse_address = True
-
-    with socketserver.TCPServer(
+    # a thread per connection: a browser keeps idle ones open, and one thread
+    # would wait on them while the Workers ask for their files
+    with http.server.ThreadingHTTPServer(
         ('127.0.0.1', port), COOPCOEPRequestHandler
     ) as httpd:
         print(f'serving on http://localhost:{port} (COOP/COEP enabled)')

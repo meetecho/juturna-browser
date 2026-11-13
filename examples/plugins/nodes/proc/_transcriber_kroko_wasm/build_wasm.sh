@@ -29,18 +29,23 @@
 # multi-GB build tree live there, not in this repo.
 #
 # Example:
-#   ./build_wasm.sh -m https://huggingface.co/csukuangfj/sherpa-onnx-streaming-zipformer-en-kroko-2025-08-06/resolve/main -wd /tmp/kroko-build
+#   ./build_wasm.sh -m https://huggingface.co/csukuangfj/sherpa-onnx-streaming-zipformer-en-kroko-2025-08-06/resolve/572aaf4e2e0c603c3fc2a574d096e755a178faa1 -wd /tmp/kroko-build
+#
+# Both sources are fixed, so that two builds give the same files: the tag of
+# sherpa-onnx (the latest one when the build was last verified, 2026-09) and
+# the revision of the model repository.
 
 set -euo pipefail
 
-MODEL_URL='https://huggingface.co/csukuangfj/sherpa-onnx-streaming-zipformer-en-kroko-2025-08-06/resolve/main'
+SHERPA_ONNX_TAG='v1.13.8'
+MODEL_URL='https://huggingface.co/csukuangfj/sherpa-onnx-streaming-zipformer-en-kroko-2025-08-06/resolve/572aaf4e2e0c603c3fc2a574d096e755a178faa1'
 
 if ! command -v emcc &> /dev/null; then
   echo 'emcc not found - source emsdk_env.sh first (see the comment above).' >&2
   exit 1
 fi
 
-while true; do
+while [ $# -gt 0 ]; do
   case "$1" in
     -m | --model)
       MODEL_URL="$2"
@@ -54,30 +59,35 @@ while true; do
       echo "Usage: $0 [-m|--model MODEL_URL] [-wd|--workdir WORKDIR]"
       exit 0
       ;;
-    --)
-      break
-      shift
+    -*)
+      echo "Unknown option: $1" >&2
+      exit 1
       ;;
     *)
-      echo "Unknown option: $1" >&2
-      shift
+      WORKDIR="$1"
       ;;
   esac
-  break
+  shift
 done
 
-WORKDIR="${WORKDIR:-${1:-$(mktemp -d -t kroko-wasm-build-XXXXXX)}}"
+WORKDIR="${WORKDIR:-$(mktemp -d -t kroko-wasm-build-XXXXXX)}"
 
 mkdir -p "$WORKDIR"
 echo "building in $WORKDIR"
 
 if [ ! -d "$WORKDIR/sherpa-onnx" ]; then
-  git clone --depth 1 https://github.com/k2-fsa/sherpa-onnx.git "$WORKDIR/sherpa-onnx"
+  git clone --depth 1 --branch "$SHERPA_ONNX_TAG" https://github.com/k2-fsa/sherpa-onnx.git "$WORKDIR/sherpa-onnx"
+fi
+
+# a checkout left there by an earlier build would be built as it is
+if [ "$(git -C "$WORKDIR/sherpa-onnx" describe --tags --exact-match 2> /dev/null)" != "$SHERPA_ONNX_TAG" ]; then
+  echo "$WORKDIR/sherpa-onnx is not at $SHERPA_ONNX_TAG: remove it, or use another WORKDIR" >&2
+  exit 1
 fi
 
 cd "$WORKDIR/sherpa-onnx/wasm/asr/assets"
 for f in encoder.onnx decoder.onnx joiner.onnx tokens.txt; do
-  [ -f "$f" ] || curl -sL -o "$f" "$MODEL_URL/$f"
+  [ -f "$f" ] || curl -fsL -o "$f" "$MODEL_URL/$f"
 done
 
 cd "$WORKDIR/sherpa-onnx"
