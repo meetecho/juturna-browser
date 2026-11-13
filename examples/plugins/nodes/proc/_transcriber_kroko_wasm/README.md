@@ -77,7 +77,7 @@ directory for that reason.
 `build_wasm.sh` in this directory reproduces it:
 
 ```
-./build_wasm.sh [WORKDIR]
+./build_wasm.sh [-m MODEL_URL] [-wd WORKDIR]
 ```
 
 It needs Emscripten (not part of this project's usual toolchain - the
@@ -90,7 +90,10 @@ repo). It downloads the 4 Kroko model files (~71 MB total: `encoder.onnx`,
 on HuggingFace (a standard, non-encrypted sherpa-onnx model export -
 distinct from Kroko's own commercial WASM SDK, which wraps its paid
 models in a licensed/encrypted container this build does not use), then
-runs sherpa-onnx's own `build-wasm-simd-asr.sh`. A full build (`-j8`,
+runs sherpa-onnx's own `build-wasm-simd-asr.sh`. Both sources are
+fixed in the script (`SHERPA_ONNX_TAG` and the revision in `MODEL_URL`), so
+that two builds give the same files: change them there to move to a newer
+sherpa-onnx or model. A full build (`-j8`,
 mirrored by the script) took about 6 minutes on a 12-core machine, most
 of it compiling sherpa-onnx's C++ core.
 
