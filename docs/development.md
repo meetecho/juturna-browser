@@ -107,6 +107,7 @@ driving the browser.
 | `test/lifecycle.html` | `--test-plugins` | listeners that throw during a loss and a restart, `terminate()` and `destroy()` while a restart waits, timers slower than the timeout, a `create()` that fails, `status()` during a loss |
 | `test/ring-repair.html` | `--test-plugins` | a queue slot claimed and never filled stops the reader; `repairRing` frees it |
 | `test/denoise.html` | `--plugins examples/noise-suppression/plugins`, and `build/vendor.py examples/noise-suppression/plugins` | `denoise_dfn`: chunks of any size, no sample lost, noise attenuated, faster than real time, a wrong rate refused |
+| `test/live-translation.html` | `--plugins examples/live-translation/plugins --plugins examples/plugins`, and `build/vendor.py examples/live-translation/plugins examples/plugins` | `whisper_asr` and `translate_opus` across three Workers with silence and noise: nothing breaks on quiet audio, a wrong sampling rate is refused and the node keeps working |
 | `test/video-blur.html` | `--test-plugins --plugins examples/video-blur/plugins`, and `build/vendor.py examples/video-blur/plugins` | the video pipeline with synthetic frames: `?fps=24&inflight=3` |
 | `test/video-blur-canvas.html` | same as `video-blur.html` | same synthetic frames, but `background_blur` is dropped from the pipe and the compositing (background blur, soft mask edge) happens in the page's own canvas instead - compares directly against `video-blur.html`'s numbers |
 
