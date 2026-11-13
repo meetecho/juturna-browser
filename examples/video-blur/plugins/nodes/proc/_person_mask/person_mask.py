@@ -39,9 +39,17 @@ _LOAD = """
 """
 
 # the model takes uint8 RGB as [1, height, width, 3] and returns the alpha
-# matte as float32 [1, height, width, 1]
+# matte as float32 [1, height, width, 1]. The RGBA frame is split here: doing
+# it on the numpy side costs a strided copy on top of the one to_js makes.
 _INFER = """
-(async ({ ort, session }, rgb, height, width) => {
+(async ({ ort, session }, rgba, height, width) => {
+  const pixels = height * width;
+  const rgb = new Uint8Array(pixels * 3);
+  for (let i = 0, j = 0; i < pixels * 4; i += 4, j += 3) {
+    rgb[j] = rgba[i];
+    rgb[j + 1] = rgba[i + 1];
+    rgb[j + 2] = rgba[i + 2];
+  }
   const input = new ort.Tensor('uint8', rgb, [1, height, width, 3]);
   const output = await session.run({ pixel_values: input });
   return output.alphas.data;
@@ -105,9 +113,15 @@ class PersonMask(Node[ImagePayload, ImagePayload]):
 
         frame = message.payload.image
         height, width = frame.shape[:2]
-        rgb = np.ascontiguousarray(frame[..., :3]).reshape(-1)
 
-        alphas = run_sync(self._infer(self._runtime, to_js(rgb), height, width))
+        alphas = run_sync(
+            self._infer(
+                self._runtime,
+                to_js(np.ascontiguousarray(frame).reshape(-1)),
+                height,
+                width,
+            )
+        )
         mask = np.array(alphas.to_py(), dtype=np.float32).reshape(height, width)
 
         out = frame.copy()
