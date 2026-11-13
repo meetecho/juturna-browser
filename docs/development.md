@@ -104,10 +104,12 @@ driving the browser.
 | `test/local-queue.html` | default | queues local to a Worker: order, capacity, close, and the refusal to be shared |
 | `test/supervisor.html` | `--test-plugins` | loss of a Worker: detection, closed queues, `stop()`; and the control without closing |
 | `test/restart.html` | `--test-plugins` | a Worker lost and rebuilt: messages fed afterwards reach `out`; the second loss, with no restart left, is final |
+| `test/lifecycle.html` | `--test-plugins` | listeners that throw during a loss and a restart, `terminate()` and `destroy()` while a restart waits, timers slower than the timeout, a `create()` that fails, `status()` during a loss |
 | `test/ring-repair.html` | `--test-plugins` | a queue slot claimed and never filled stops the reader; `repairRing` frees it |
 | `test/denoise.html` | `--plugins examples/noise-suppression/plugins`, and `build/vendor.py examples/noise-suppression/plugins` | `denoise_dfn`: chunks of any size, no sample lost, noise attenuated, faster than real time, a wrong rate refused |
 | `test/video-blur.html` | `--test-plugins --plugins examples/video-blur/plugins`, and `build/vendor.py examples/video-blur/plugins` | the video pipeline with synthetic frames: `?fps=24&inflight=3` |
 | `test/video-blur-canvas.html` | same as `video-blur.html` | same synthetic frames, but `background_blur` is dropped from the pipe and the compositing (background blur, soft mask edge) happens in the page's own canvas instead - compares directly against `video-blur.html`'s numbers |
 
 Serve the pages with `python3 serve.py 8765` (see the README). A background tab limits `setTimeout` to once a second: the tests that need
-regular timing take it from a Worker.
+regular timing take it from a Worker. `supervisor`, `restart` and `lifecycle`
+expect a loss to be noticed within seconds: keep their tab in the foreground.

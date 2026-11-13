@@ -64,7 +64,12 @@ export class Juturna {
   static async create({ base = DEFAULT_BASE, pyodide = 'v314.0.6', pyodideBase, workers = [DEFAULT_WORKER], supervise } = {}) {
     if (!/^v\d+\.\d+\.\d+$/.test(pyodide)) throw new Error(`not a Pyodide version: ${pyodide}`);
     const jt = new Juturna(base, pyodideBase ? new URL(pyodideBase, location.href).href : pyodide, supervise);
-    await Promise.all(workers.map((name) => jt.#spawn(name)));
+    try {
+      await Promise.all(workers.map((name) => jt.#spawn(name)));
+    } catch (error) {
+      jt.terminate();            // the caller gets no instance to do it with
+      throw error;
+    }
     return jt;
   }
 
@@ -105,6 +110,7 @@ export class Juturna {
 
   /** Stop every Worker. The pipeline is lost. */
   terminate() {
+    this.#stopping = true;       // a restart that is waiting must not bring a Worker back
     clearInterval(this.#monitor);
     this.#monitor = null;
     for (const link of this.#links.values()) link.terminate();
@@ -115,7 +121,8 @@ export class Juturna {
 
   _link(name) { return this.#links.get(name); }
 
-  // stop() begins: no restart from now on, and one under way must finish first
+  // stop() or destroy() begins: no restart from now on, and one under way
+  // must finish first
   async _beginStop() {
     this.#stopping = true;
     await Promise.allSettled([...this.#restarting.values()]);
@@ -124,12 +131,17 @@ export class Juturna {
   // Ping every Worker from now on: they must be answering to be alive.
   _supervise() {
     if (this.#monitor) return;
-    const now = performance.now();
-    for (const link of this.#links.values()) link.lastPong = now;
+    let lastTick = performance.now();
+    for (const link of this.#links.values()) link.lastPong = lastTick;
     this.#monitor = setInterval(() => {
       const now = performance.now();
+      // The time this timer was late (a hidden tab runs it once a minute) is
+      // time no Worker was asked anything: it does not count against them.
+      const late = Math.max(0, now - lastTick - this.#supervise.pingMs);
+      lastTick = now;
       for (const link of this.#links.values()) {
         if (link.state !== 'ok' || !link.booted) continue;
+        link.lastPong = Math.min(now, link.lastPong + late);
         if (now - link.lastPong > this.#supervise.timeoutMs) this.#lost(link, `no answer for ${this.#supervise.timeoutMs} ms`);
         else link.ping();
       }
@@ -170,7 +182,7 @@ export class Juturna {
   async #restart(name, attempt) {
     this.#attempts.set(name, attempt);
     await new Promise((resolve) => setTimeout(resolve, this.#supervise.restart.delayMs));
-    if (this.#stopping) return;
+    if (this.#stopping) return this.#pipeline._restartCancelled(name);
 
     this.#links.delete(name);
     try {
@@ -394,12 +406,22 @@ class Pipeline {
     await this.#all('stop');
   }
 
-  destroy() { return this.#all('destroy'); }
+  async destroy() {
+    await this.#jt._beginStop();
+    await this.#all('destroy');
+  }
 
   /** Status and health of the pipeline and of each node, all Workers merged. */
   async status() {
-    const alive = this.#workers.filter((name) => !this.#lost.has(name) && !this.#restarting.has(name));
-    const parts = await Promise.all(alive.map((name) => this.#jt._link(name).call('status')));
+    const asked = this.#workers.filter((name) => !this.#lost.has(name) && !this.#restarting.has(name));
+    const answers = await Promise.all(asked.map((name) => this.#jt._link(name).call('status').catch((error) => {
+      if (!this.#lost.has(name)) throw error;
+      return null;               // lost while we ask: reported like the ones lost before
+    })));
+    const liveAnswers = asked.map((name, i) => [name, answers[i]])
+      .filter(([name, answer]) => answer && !this.#lost.has(name) && !this.#restarting.has(name));
+    const alive = liveAnswers.map(([name]) => name);
+    const parts = liveAnswers.map(([, answer]) => answer);
     return {
       pipeline: [...new Set(parts.map((p) => p.pipeline))].join('/'),
       nodes: Object.assign({}, ...parts.map((p) => p.nodes)),
@@ -450,14 +472,23 @@ class Pipeline {
     this.#lost.set(worker, reason);
     if (willRestart) this.#restarting.add(worker);
     this._error(new Error(`Worker ${worker} was lost: ${reason}${willRestart ? ' (restarting)' : ''}`));
-    for (const callback of this.#lostListeners) callback({ worker, reason, willRestart });
+    // a listener that throws must not stop the recovery that follows
+    for (const callback of this.#lostListeners) {
+      try { callback({ worker, reason, willRestart }); } catch (error) { this._error(error); }
+    }
   }
 
   _workerRestarted(worker, attempt) {
     this.#lost.delete(worker);
     this.#restarting.delete(worker);
-    for (const callback of this.#restartedListeners) callback({ worker, attempt });
+    // a listener that throws must not make a Worker that came back look like a failed restart
+    for (const callback of this.#restartedListeners) {
+      try { callback({ worker, attempt }); } catch (error) { this._error(error); }
+    }
   }
+
+  // stop(), destroy() or terminate() came first: the Worker stays lost
+  _restartCancelled(worker) { this.#restarting.delete(worker); }
 
   // A Worker was built again: its nodes, and the queues to and from them.
   async _rebuild(name) {

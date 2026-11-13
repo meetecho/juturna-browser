@@ -28,7 +28,12 @@ parallel. It takes about 3 to 4 seconds, however many Workers there are.
 
 - `pingMs` (`1000`): how often each Worker is pinged, once the pipeline runs.
 - `timeoutMs` (`5000`): a Worker that has not answered for this long is lost. A
-  node that keeps the CPU busy for longer needs a higher value.
+  node that keeps the CPU busy for longer needs a higher value. The time the
+  page's own timer did not run does not count: a Worker is lost after it missed
+  `timeoutMs / pingMs` pings in a row, whenever they were sent. In a background
+  tab, where timers run once a second, and in a hidden one, where they run once
+  a minute, that takes longer than `timeoutMs`: minutes, with the defaults, in
+  a hidden tab.
 - `poisonRings` (`true`): whether the queues that lead to the nodes of a lost
   Worker are closed. `false` exists to test what closing them changes; do not
   use it otherwise.
@@ -50,7 +55,8 @@ Juturna when a node cannot be built (an unknown `type`, an invalid argument).
 
 ### `jt.terminate()`
 
-Stops every Worker. The pipeline is gone. Call it after `pipe.destroy()`.
+Stops every Worker. The pipeline is gone, and a restart that was waiting is
+cancelled. Call it after `pipe.destroy()`.
 
 ## `Pipeline`
 
@@ -131,7 +137,8 @@ two seconds per node at most (the join timeout of Juturna). Lost Workers are ski
 
 ### `pipe.destroy(): Promise<void>`
 
-Releases the nodes. It stops the pipeline first if it is running.
+Releases the nodes. It stops the pipeline first if it is running. No Worker
+is restarted from then on.
 
 ### `pipe.telemetry(): Promise<object[]>`
 
@@ -246,4 +253,5 @@ the message is dropped.
 | A Python exception inside a node | Logged by Juturna; `status().nodes[...].health` counts it. The node keeps running. |
 | A callback of `onTelemetry` or `output().on` that throws | `pipe.onError` |
 | Loss of a Worker | `pipe.onWorkerLost` and `pipe.onError`; `status()`; `pipe.onWorkerRestarted` if it comes back |
+| A callback of `onWorkerLost` or `onWorkerRestarted` that throws | `pipe.onError`; the recovery goes on |
 | `feed()` or `port()` to a lost Worker | throws |

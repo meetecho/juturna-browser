@@ -26,6 +26,9 @@ def plan(config_json):
 
 def create(config_json, worker):
     global pipe
+    if pipe is not None:
+        # a build that failed in another Worker is tried again in all of them
+        pipe.destroy()
     pipe = Pipeline(json.loads(config_json), worker=worker)
     pipe.warmup()
 
@@ -41,8 +44,12 @@ def feed(name, message):
 def start():
     pipe.start()
 
+def nodes():
+    # destroy() leaves no nodes, and no dict either
+    return pipe._nodes or {}
+
 def stop_layer(names):
-    names = [name for name in names if name in pipe._nodes]
+    names = [name for name in names if name in nodes()]
     for name in names:
         pipe._nodes[name].stop()
     for name in names:
@@ -58,7 +65,7 @@ def telemetry():
     manager = pipe._telemetry_manager
     if not manager:
         return '[]'
-    for node in pipe._nodes.values():
+    for node in nodes().values():
         node.flush_telemetry()
     return json.dumps(manager.records(), default=str)
 
@@ -66,7 +73,7 @@ def status():
     return json.dumps({
         'pipeline': str(pipe._status),
         'nodes': {name: {'status': str(node.status), 'health': node.health}
-                  for name, node in pipe._nodes.items()},
+                  for name, node in nodes().items()},
     }, default=str)
 `;
 
