@@ -1,0 +1,123 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>lifecycle test</title></head>
+<body><pre id="out">running...</pre>
+<script type="module">
+// What must hold around a lost Worker and the end of an instance: listeners
+// that throw, terminate() and destroy() while a restart waits, a page whose
+// timers run less often than the timeout, a create() that fails, a status()
+// asked while a Worker vanishes. Build with --test-plugins first.
+import { Juturna } from '../src/juturna.js';
+
+window.__result = null;
+const checks = {};
+const check = (n, ok, d) => { checks[n] = ok ? 'ok' : 'FAIL' + (d !== undefined ? ': ' + JSON.stringify(d) : ''); };
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const until = async (fn, ms) => { const t = performance.now(); while (performance.now() - t < ms) { if (fn()) return true; await sleep(100); } return fn(); };
+const rejection = async (fn) => { try { await fn(); return null; } catch (e) { return e.message; } };
+
+// every Worker the library starts, to tell which ones it left running
+const workers = [];
+const NativeWorker = Worker;
+window.Worker = class extends NativeWorker {
+  constructor(...args) { super(...args); this.terminated = false; workers.push(this); }
+  terminate() { this.terminated = true; super.terminate(); }
+};
+const running = () => workers.filter((w) => !w.terminated).length;
+
+const crashing = { pipeline: { name: 'lc', id: 'lc-1', folder: '/tmp/juturna/lc', transport: 'browser',
+  nodes: [{ name: 'in', type: 'BrowserInput', configuration: {} },
+          { name: 'crash', type: 'extensions.nodes.Crash', worker: 'heavy', configuration: { after: 10 } },
+          { name: 'out', type: 'BrowserOutput', configuration: {} }],
+  links: [{ from: 'in', to: 'crash' }, { from: 'crash', to: 'out' }] } };
+const plain = { pipeline: { name: 'lp', id: 'lp-1', folder: '/tmp/juturna/lp', transport: 'browser',
+  nodes: [{ name: 'in', type: 'BrowserInput', configuration: {} },
+          { name: 'out', type: 'BrowserOutput', configuration: {} }],
+  links: [{ from: 'in', to: 'out' }] } };
+const audio = (i) => ({ kind: 'audio', payload: { audio: new Float32Array(160), sampling_rate: 16000 }, meta: { i } });
+
+// a pipeline whose `heavy` Worker has just vanished
+async function crashed(restart, listeners = () => {}) {
+  const jt = await Juturna.create({ workers: ['main', 'heavy'], supervise: { pingMs: 200, timeoutMs: 1500, restart } });
+  const pipe = await jt.pipeline(crashing);
+  const s = { jt, pipe, got: [], lost: [], restarted: [], errors: [] };
+  pipe.output('out').on('message', (m) => s.got.push(m.meta.i));
+  pipe.onError((e) => s.errors.push(e.message));
+  listeners(s);
+  await pipe.start();
+  for (let i = 0; i < 40; i++) pipe.input('in').feed(audio(i));
+  await until(() => s.got.length >= 10, 6000);
+  return s;
+}
+
+try {
+  {
+    // listeners that throw do not stop the recovery, nor undo it
+    const s = await crashed({ maxRestarts: 1, delayMs: 200 }, (s) => {
+      s.pipe.onWorkerLost((e) => { s.lost.push(e); throw new Error('lost boom'); });
+      s.pipe.onWorkerRestarted((e) => { s.restarted.push(e); throw new Error('restarted boom'); });
+    });
+    check('throwing_lost_listener_still_restarts', await until(() => s.restarted.length === 1, 20000), s.lost);
+    await sleep(1000);
+    const status = await s.pipe.status();
+    check('throwing_restarted_listener_keeps_the_worker', /running/i.test(status.workers.heavy) && s.lost.length === 1, status.workers);
+    check('listener_errors_reach_onError', ['lost boom', 'restarted boom'].every((m) => s.errors.includes(m)), s.errors);
+    await s.pipe.stop(); await s.pipe.destroy(); s.jt.terminate();
+  }
+  {
+    // a status() asked while the Worker vanishes answers; terminate() cancels the restart
+    const s = await crashed({ maxRestarts: 1, delayMs: 1000 }, (s) => s.pipe.onWorkerLost((e) => s.lost.push(e)));
+    const status = await s.pipe.status().catch((e) => e);
+    check('status_survives_a_loss_during_the_call', ['restarting', 'lost'].includes(status.workers?.heavy), String(status.message ?? JSON.stringify(status.workers)));
+    await until(() => s.lost.length === 1, 6000);
+    s.jt.terminate();
+    const started = workers.length;
+    await sleep(2500);
+    check('no_worker_after_terminate', workers.length === started && running() === 0, { started, now: workers.length, running: running() });
+  }
+  {
+    // destroy() alone cancels the restart too
+    const s = await crashed({ maxRestarts: 1, delayMs: 1000 }, (s) => s.pipe.onWorkerLost((e) => s.lost.push(e)));
+    await until(() => s.lost.length === 1, 6000);
+    await s.pipe.destroy();
+    const started = workers.length;
+    await sleep(2500);
+    check('no_worker_after_destroy', workers.length === started, { started, now: workers.length });
+    const status = await s.pipe.status();
+    check('cancelled_restart_leaves_the_worker_lost', status.workers.heavy === 'lost', status.workers);
+    s.jt.terminate();
+  }
+  {
+    // a pipeline() that failed can be tried again; timers that run less often
+    // than the timeout (a hidden tab: once a minute) do not lose Workers that
+    // answer every ping they get
+    const jt = await Juturna.create({ supervise: { pingMs: 200, timeoutMs: 1500 } });
+    const broken = structuredClone(plain);
+    // in another Worker, so that `main` has a pipeline built when it is asked again
+    broken.pipeline.nodes.push({ name: 'missing', type: 'extensions.nodes.Missing', worker: 'heavy', configuration: {} });
+    check('broken_pipeline_rejects', (await rejection(() => jt.pipeline(broken))) !== null);
+    const pipe = await jt.pipeline(plain);
+    const got = [], lost = [];
+    pipe.output('out').on('message', (m) => got.push(m.meta.i));
+    pipe.onWorkerLost((e) => lost.push(e));
+    pipe.onError(() => {});
+    const nativeSetInterval = window.setInterval;
+    window.setInterval = (fn) => nativeSetInterval(fn, 3000);
+    await pipe.start();
+    window.setInterval = nativeSetInterval;
+    await sleep(7000);
+    check('throttled_timers_lose_no_worker', lost.length === 0, lost);
+    if (!lost.length) pipe.input('in').feed(audio('after'));
+    check('pipeline_runs_with_throttled_timers', await until(() => got.includes('after'), 4000), got);
+    await pipe.stop(); await pipe.destroy(); jt.terminate();
+  }
+  {
+    // a create() that fails leaves no Worker behind
+    const before = running();
+    const error = await rejection(() => Juturna.create({ base: new URL('./missing/', location.href), workers: ['a', 'b'] }));
+    check('failed_create_rejects', error !== null);
+    check('failed_create_leaves_no_worker', running() === before, { before, now: running() });
+  }
+  window.__result = { checks };
+} catch (e) { window.__result = { fatal: String(e && e.stack || e), checks }; }
+document.getElementById('out').textContent = JSON.stringify(window.__result, null, 1);
+</script></body></html>
