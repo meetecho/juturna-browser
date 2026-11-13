@@ -418,8 +418,10 @@ class Pipeline {
       if (!this.#lost.has(name)) throw error;
       return null;               // lost while we ask: reported like the ones lost before
     })));
-    const alive = asked.filter((name, i) => answers[i]);
-    const parts = answers.filter(Boolean);
+    const liveAnswers = asked.map((name, i) => [name, answers[i]])
+      .filter(([name, answer]) => answer && !this.#lost.has(name) && !this.#restarting.has(name));
+    const alive = liveAnswers.map(([name]) => name);
+    const parts = liveAnswers.map(([, answer]) => answer);
     return {
       pipeline: [...new Set(parts.map((p) => p.pipeline))].join('/'),
       nodes: Object.assign({}, ...parts.map((p) => p.nodes)),
