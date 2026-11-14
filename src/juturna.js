@@ -20,7 +20,10 @@
 import { poisonRing, repairRing } from './ring.js';
 
 const DEFAULT_BASE = new URL('../dist/', import.meta.url);
-const DEFAULT_SUPERVISE = { pingMs: 1000, timeoutMs: 5000, poisonRings: true, restart: { maxRestarts: 0, delayMs: 500 } };
+const DEFAULT_SUPERVISE = {
+  pingMs: 1000, timeoutMs: 5000, poisonRings: true,
+  restart: { maxRestarts: 0, delayMs: 500, timeoutMs: 30000 }
+};
 const DEFAULT_WORKER = 'main';
 
 const workerOf = (node) => node.worker ?? DEFAULT_WORKER;
@@ -46,7 +49,7 @@ export class Juturna {
    * Start the Workers, load Pyodide and install Juturna in each, in parallel.
    * @param {{base?: URL|string, pyodide?: string, pyodideBase?: URL|string, workers?: string[],
    *   supervise?: {pingMs?: number, timeoutMs?: number, poisonRings?: boolean,
-   *   restart?: {maxRestarts?: number, delayMs?: number}}}} options
+   *   restart?: {maxRestarts?: number, delayMs?: number, timeoutMs?: number}}}} options
    *   `base` is the folder with the artifacts of build/build.py; `pyodide` is
    *   the version loaded from the jsDelivr CDN, which cannot be checked with an
    *   integrity hash: `pyodideBase`, the URL of a folder with a copy of that
@@ -59,7 +62,8 @@ export class Juturna {
    *   a lost Worker as they are (only useful to test what that changes).
    *   With `restart.maxRestarts` above 0 (it is 0), a lost Worker is rebuilt
    *   after `delayMs`, up to that many times: its nodes start again from
-   *   scratch, and what was in the queues that led to them is gone.
+   *   scratch, and what was in the queues that led to them is gone. A
+   *   restart that takes longer than `restart.timeoutMs` has failed.
    */
   static async create({ base = DEFAULT_BASE, pyodide = 'v314.0.6', pyodideBase, workers = [DEFAULT_WORKER], supervise } = {}) {
     if (!/^v\d+\.\d+\.\d+$/.test(pyodide)) throw new Error(`not a Pyodide version: ${pyodide}`);
@@ -188,14 +192,22 @@ export class Juturna {
     if (this.#stopping) return this.#pipeline._restartCancelled(name);
 
     this.#links.delete(name);
+    const { timeoutMs } = this.#supervise.restart;
+    let timer;
     try {
-      await this.#spawn(name);
-      await this.#pipeline._rebuild(name);
+      const rebuilt = this.#spawn(name).then(() => this.#pipeline._rebuild(name));
+      // nobody pings a Worker being rebuilt: one that vanished would never be noticed
+      const overdue = new Promise((resolve, reject) => {
+        timer = setTimeout(() => reject(new Error(`not rebuilt within ${timeoutMs} ms`)), timeoutMs);
+      });
+      await Promise.race([rebuilt, overdue]);
       this.#links.get(name).lastPong = performance.now();
       this.#pipeline._workerRestarted(name, attempt);
     } catch (error) {
       // it did not come back: lost again, and maybe one more try
       await this.#lost(this.#links.get(name), `restart failed: ${error.message}`);
+    } finally {
+      clearTimeout(timer);
     }
   }
 

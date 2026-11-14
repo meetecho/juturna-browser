@@ -13,12 +13,16 @@ const checks = {};
 const check = (n, ok, d) => { checks[n] = ok ? 'ok' : 'FAIL' + (d !== undefined ? ': ' + JSON.stringify(d) : ''); };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const until = async (fn, ms) => { const t = performance.now(); while (performance.now() - t < ms) { if (fn()) return true; await sleep(100); } return fn(); };
+const within = (promise, ms) => Promise.race([promise.then(() => true), sleep(ms).then(() => false)]);
 const rejection = async (fn) => { try { await fn(); return null; } catch (e) { return e.message; } };
 
 // every Worker the library starts, to tell which ones it left running; the
-// next one fails at once when `failNextWorker` is set
+// next one fails at once when `failNextWorker` is set, and never gets the
+// command that builds its pipeline when `muteNextWorker` is (a Worker that
+// vanished while warming up its nodes: no answer, no error)
 const workers = [];
 let failNextWorker = false;
+let muteNextWorker = false;
 const NativeWorker = Worker;
 window.Worker = class extends NativeWorker {
   constructor(...args) {
@@ -27,7 +31,10 @@ window.Worker = class extends NativeWorker {
     workers.push(this);
     if (failNextWorker) setTimeout(() => this.dispatchEvent(new ErrorEvent('error', { message: 'boom' })));
     failNextWorker = false;
+    this.muted = muteNextWorker;
+    muteNextWorker = false;
   }
+  postMessage(message, ...rest) { if (!(this.muted && message.cmd === 'pipeline')) super.postMessage(message, ...rest); }
   terminate() { this.terminated = true; super.terminate(); }
 };
 const running = () => workers.filter((w) => !w.terminated).length;
@@ -94,6 +101,22 @@ try {
     const status = await s.pipe.status();
     check('failed_restart_leaves_the_worker_lost', status.workers.heavy === 'lost', status.workers);
     await s.pipe.stop(); await s.pipe.destroy(); s.jt.terminate();
+  }
+  {
+    // a restart that never ends is given up after restart.timeoutMs: the
+    // Worker is lost, and stop() does not wait for it for ever
+    const s = await crashed({ maxRestarts: 1, delayMs: 200, timeoutMs: 6000 }, (s) => s.pipe.onWorkerLost((e) => s.lost.push(e)));
+    muteNextWorker = true;
+    check('endless_restart_is_given_up', await until(() => s.lost.length === 2, 15000) && /not rebuilt within 6000 ms/.test(s.lost[1].reason) && s.lost[1].willRestart === false, s.lost);
+    const stopped = await within(s.pipe.stop(), 10000);
+    check('stop_returns_after_an_endless_restart', stopped);
+    if (stopped) {
+      const status = await s.pipe.status();
+      check('endless_restart_leaves_the_worker_lost', status.workers.heavy === 'lost' && running() === 1, { workers: status.workers, running: running() });
+      await s.pipe.destroy();
+    }
+    s.jt.terminate();
+    muteNextWorker = false;      // if no Worker took it, the next scenario must not
   }
   {
     // a status() asked while the Worker vanishes answers; terminate() cancels the restart

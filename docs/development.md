@@ -121,7 +121,7 @@ driving the browser.
 | `test/local-queue.html` | default | queues local to a Worker: order, capacity, close, and the refusal to be shared |
 | `test/supervisor.html` | `--test-plugins` | loss of a Worker: detection, closed queues, `stop()`; and the control without closing |
 | `test/restart.html` | `--test-plugins` | a Worker lost and rebuilt: messages fed afterwards reach `out`; the second loss, with no restart left, is final |
-| `test/lifecycle.html` | `--test-plugins` | listeners that throw during a loss and a restart, a warm-up longer than the timeout during a restart, `terminate()` and `destroy()` while a restart waits, timers slower than the timeout, a `create()` that fails, `status()` during a loss |
+| `test/lifecycle.html` | `--test-plugins` | listeners that throw during a loss and a restart, a warm-up longer than the timeout during a restart, a restart that never ends, `terminate()` and `destroy()` while a restart waits, timers slower than the timeout, a `create()` that fails, `status()` during a loss |
 | `test/ring-repair.html` | `--test-plugins` | a queue slot claimed and never filled stops the reader; `repairRing` frees it |
 | `test/denoise.html` | `--plugins examples/noise-suppression/plugins`, and `build/vendor.py examples/noise-suppression/plugins` | `denoise_dfn`: chunks of any size, no sample lost, noise attenuated, faster than real time, a wrong rate refused |
 | `test/live-translation.html` | `--plugins examples/live-translation/plugins --plugins examples/plugins`, and `build/vendor.py examples/live-translation/plugins examples/plugins` | `whisper_asr` and `translate_opus` across three Workers with silence and noise: nothing breaks on quiet audio, a wrong sampling rate is refused and the node keeps working |

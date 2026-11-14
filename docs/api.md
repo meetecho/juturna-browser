@@ -37,10 +37,14 @@ parallel. It takes about 3 to 4 seconds, however many Workers there are.
 - `poisonRings` (`true`): whether the queues that lead to the nodes of a lost
   Worker are closed. `false` exists to test what closing them changes; do not
   use it otherwise.
-- `restart` (`{maxRestarts: 0, delayMs: 500}`): with `maxRestarts` above 0, a
-  lost Worker is built again after `delayMs`, at most that many times for each
-  Worker. Off by default: a node that runs out of memory will do it again, and
-  a loop of restarts is worse than a clean stop. See
+- `restart` (`{maxRestarts: 0, delayMs: 500, timeoutMs: 30000}`): with
+  `maxRestarts` above 0, a lost Worker is built again after `delayMs`, at most
+  that many times for each Worker. Off by default: a node that runs out of memory will do it again, and
+  a loop of restarts is worse than a clean stop. A restart has `timeoutMs`,
+  from the start of the new Worker to its nodes running: past it the Worker is
+  lost again, and the next attempt follows if one is left. Raise it when the
+  nodes of a Worker take longer than that to warm up; it is a number of
+  milliseconds, and the limit cannot be removed. See
   [Lost Workers](guide.md#lost-workers) for what a restart does and does not
   bring back.
 
@@ -134,6 +138,8 @@ Stops the pipeline in the same order as on desktop, across Workers: the nodes of
 each layer of the graph are sent a stop and joined before the next layer, so
 what an upstream node sent last is still consumed downstream. It takes about
 two seconds per node at most (the join timeout of Juturna). Lost Workers are skipped.
+A restart under way is waited for first, up to `restart.timeoutMs`; `destroy()`
+does the same.
 
 ### `pipe.destroy(): Promise<void>`
 

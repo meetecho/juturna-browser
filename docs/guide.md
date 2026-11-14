@@ -147,8 +147,10 @@ pipe.onWorkerRestarted(({ worker, attempt }) => { input = pipe.input('in'); /* n
 A restart builds the nodes of the Worker again from the same configuration,
 connects its queues to the rest of the pipeline in both directions, and starts
 it. It takes what starting a Worker takes: about 3 seconds for Pyodide, plus
-whatever the nodes need in `warmup()`. The Worker is not pinged during that time,
-however long the warm-up takes: it is supervised again once its nodes run.
+whatever the nodes need in `warmup()`. The Worker is not pinged during that time:
+it is supervised again once its nodes run. What bounds the restart is
+`restart.timeoutMs` (30 seconds): a Worker that is not back by then is lost
+again, which uses up an attempt. A node that loads a large model may need more.
 
 What it does **not** bring back: the messages that were in the queues of the
 lost Worker, and the state of its nodes, which start from scratch. Messages fed
