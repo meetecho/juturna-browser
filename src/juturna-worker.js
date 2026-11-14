@@ -2,6 +2,10 @@
 // Pipeline. Commands arrive as {id, cmd, ...} and are answered with
 // {id, ok, result|error}; outputs and feed errors are unsolicited events.
 import { bootstrapJuturna, fetchAssets } from './bootstrap.js';
+import { cachedFetch } from './model-cache.js';
+
+// for the nodes: their models and runtimes, kept between visits
+self.juturnaFetch = cachedFetch;
 
 let pyodide = null;
 let py = null;                       // the Python functions below

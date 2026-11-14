@@ -36,10 +36,18 @@ _LOAD = """
   // onnxruntime-web's own min(4, ceil(cores/2)) default.
   const cores = navigator.hardwareConcurrency || 4;
   ort.env.wasm.numThreads = maxThreads ?? Math.min(4, Math.ceil(cores / 2));
-  const resp = await fetch(modelUrl);
-  if (!resp.ok) throw new Error(`${modelUrl}: HTTP ${resp.status}`);
-  const bytes = new Uint8Array(await resp.arrayBuffer());
-  const session = await ort.InferenceSession.create(bytes, {
+  // juturna-browser keeps these files between visits; elsewhere, plain fetch
+  const get = self.juturnaFetch ?? fetch;
+  const bytes = async (url) => {
+    const resp = await get(url);
+    if (!resp.ok) throw new Error(`${url}: HTTP ${resp.status}`);
+    return resp.arrayBuffer();
+  };
+  // the runtime too, handed over instead of fetched by ORT on its own
+  const runtime = new URL('ort-wasm-simd-threaded.wasm', wasmPath).href;
+  ort.env.wasm.wasmBinary = await bytes(runtime);
+  const model = new Uint8Array(await bytes(modelUrl));
+  const session = await ort.InferenceSession.create(model, {
     executionProviders: ['wasm'],
   });
   return {

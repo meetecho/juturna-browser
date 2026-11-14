@@ -1,0 +1,84 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>model cache test</title></head>
+<body><pre id="out">running...</pre>
+<script type="module">
+// The cache the nodes fetch their files through (self.juturnaFetch in a
+// Worker): a copy is kept, checked with a conditional request, replaced when
+// the file changed, used when offline, and a failing cache falls back to the
+// network. Needs no bundle: it imports the module directly.
+import { cachedFetch } from '../src/model-cache.js';
+
+window.__result = null;
+const checks = {};
+const check = (n, ok, d) => { checks[n] = ok ? 'ok' : 'FAIL' + (d !== undefined ? ': ' + JSON.stringify(d) : ''); };
+const CACHE = 'juturna-models';
+const file = new URL('../src/ring.js', location.href).href;
+// a copy of `file` with another body and the given validators
+const plant = async (url, body, headers) => (await caches.open(CACHE)).put(url, new Response(body, { headers }));
+const stored = async (url) => (await (await caches.open(CACHE)).match(url))?.text();
+// the copy is written while the caller reads the file: wait for it
+const kept = async (url, body) => {
+  for (let i = 0; i < 50; i++) {
+    if ((await stored(url)) === body) return true;
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  return false;
+};
+
+try {
+  await caches.delete(CACHE);
+  const original = await (await fetch(file, { cache: 'no-store' })).text();
+
+  const first = await cachedFetch(file);
+  check('first_fetch_downloads', first.status === 200 && (await first.text()) === original, first.status);
+  check('first_fetch_is_kept', await kept(file, original));
+
+  // same validators as the server: the 304 is answered with the copy
+  const lastModified = (await fetch(file, { method: 'HEAD', cache: 'no-store' })).headers.get('last-modified');
+  await plant(file, 'the copy', { 'last-modified': lastModified });
+  check('unchanged_file_comes_from_the_copy', (await (await cachedFetch(file)).text()) === 'the copy', lastModified);
+
+  // older validators: the file changed on the server, and replaces the copy
+  await plant(file, 'stale', { 'last-modified': 'Thu, 01 Jan 2004 00:00:00 GMT' });
+  check('changed_file_is_downloaded', (await (await cachedFetch(file)).text()) === original);
+  check('changed_file_replaces_the_copy', await kept(file, original));
+
+  // a copy with no validators is never trusted
+  await plant(file, 'unchecked', {});
+  check('copy_without_validators_is_downloaded', (await (await cachedFetch(file)).text()) === original);
+
+  // the network fails: the copy is used
+  const unreachable = 'http://127.0.0.1:1/model.bin';
+  await plant(unreachable, 'offline copy', { 'last-modified': lastModified });
+  check('offline_uses_the_copy', (await (await cachedFetch(unreachable)).text()) === 'offline copy');
+  const nothing = cachedFetch('http://127.0.0.1:1/other.bin');
+  check('offline_without_copy_rejects', await nothing.then(() => false, () => true));
+
+  // a server error: the copy is used
+  const nativeFetch = window.fetch;
+  window.fetch = async () => new Response('', { status: 503 });
+  try {
+    check('server_error_uses_the_copy', (await (await cachedFetch(unreachable)).text()) === 'offline copy');
+  } finally {
+    window.fetch = nativeFetch;
+  }
+
+  // a missing file is returned as it is, and not kept
+  const missing = new URL('./missing-model.bin', location.href).href;
+  const status = (await cachedFetch(missing)).status;
+  check('missing_file_is_not_kept', status === 404 && (await stored(missing)) === undefined, status);
+
+  // the cache failing does not stop the file
+  const open = caches.open;
+  caches.open = () => Promise.reject(new Error('no cache'));
+  try {
+    check('broken_cache_falls_back_to_the_network', (await (await cachedFetch(file)).text()) === original);
+  } finally {
+    caches.open = open;
+  }
+
+  await caches.delete(CACHE);
+  window.__result = { checks };
+} catch (e) { window.__result = { fatal: String(e && e.stack || e), checks }; }
+document.getElementById('out').textContent = JSON.stringify(window.__result, null, 1);
+</script></body></html>

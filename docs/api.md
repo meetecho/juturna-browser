@@ -198,6 +198,20 @@ The message ids are counters of one Worker: identify a message by
 
 The nodes of a lost or restarting Worker are not listed.
 
+## In a Worker: `self.juturnaFetch(url): Promise<Response>`
+
+For the JavaScript a node runs: fetches `url` like `fetch()`, and keeps the
+file in the browser's Cache Storage (`juturna-models`) for the next visit. When
+a copy is there, it asks the server whether the file changed (a conditional
+request on its `Last-Modified` or `ETag`): an answer of `304` returns the copy,
+a new file replaces it, and a network error or a server error (`5xx`) returns
+the copy. A server that
+sends neither header gets the file downloaded every time.
+
+Any other error answer (`404`) is returned as it is and not kept; a failure of the
+cache itself (no Cache Storage, out of quota) falls back to the network. A node
+that also runs outside juturna-browser uses `self.juturnaFetch ?? fetch`.
+
 ## Configuration
 
 The keys of Juturna that matter here, in a pipeline configuration:

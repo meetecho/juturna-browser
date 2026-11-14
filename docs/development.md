@@ -4,7 +4,8 @@
 
 ```
 src/         juturna.js (the API), juturna-worker.js (the Worker side),
-             bootstrap.js (installs Juturna in Pyodide), ring.js (closes and repairs queues)
+             bootstrap.js (installs Juturna in Pyodide), ring.js (closes and repairs queues),
+             model-cache.js (the files of the nodes kept between visits)
 build/       build.py (the bundle), vendor.py (the third-party files nodes declare)
 examples/    microphone.html, video-blur/, noise-suppression/, live-translation/,
              live-translation-kroko/, live-transcription-kroko/, telemetry.js (the
@@ -122,6 +123,7 @@ driving the browser.
 | `test/supervisor.html` | `--test-plugins` | loss of a Worker: detection, closed queues, `stop()`; and the control without closing |
 | `test/restart.html` | `--test-plugins` | a Worker lost and rebuilt: messages fed afterwards reach `out`; the second loss, with no restart left, is final |
 | `test/lifecycle.html` | `--test-plugins` | listeners that throw during a loss and a restart, a warm-up longer than the timeout during a restart, a restart that never ends, a Worker that never answers `create()`, `pipeline()` or `start()`, `terminate()` and `destroy()` while a restart waits, timers slower than the timeout, a `create()` that fails, `status()` during a loss |
+| `test/model-cache.html` | none | the cache behind `juturnaFetch`: a copy kept, used after a `304`, replaced when the file changed, used offline, and a failing cache falling back to the network |
 | `test/ring-repair.html` | `--test-plugins` | a queue slot claimed and never filled stops the reader; `repairRing` frees it |
 | `test/denoise.html` | `--plugins examples/noise-suppression/plugins`, and `build/vendor.py examples/noise-suppression/plugins` | `denoise_dfn`: chunks of any size, no sample lost, noise attenuated, faster than real time, a wrong rate refused |
 | `test/live-translation.html` | `--plugins examples/live-translation/plugins --plugins examples/plugins`, and `build/vendor.py examples/live-translation/plugins examples/plugins` | `whisper_asr` and `translate_opus` across three Workers with silence and noise: nothing breaks on quiet audio, a wrong sampling rate is refused and the node keeps working |

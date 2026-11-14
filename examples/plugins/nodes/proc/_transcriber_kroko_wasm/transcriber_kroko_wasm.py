@@ -46,18 +46,42 @@ _LOAD = """
       reject(new Error('sherpa-onnx-wasm aborted: ' + reason));
   });
 
-  // a missing file must say so, not be evaluated as a script
-  const text = async (url) => {
-    const resp = await fetch(url);
+  // juturna-browser keeps these files between visits; elsewhere, plain fetch.
+  // A missing file must say so, not be evaluated as a script.
+  const load = self.juturnaFetch ?? fetch;
+  const get = async (url) => {
+    const resp = await load(url);
     if (!resp.ok) throw new Error(`${url}: HTTP ${resp.status}`);
-    return resp.text();
+    return resp;
+  };
+  const text = async (url) => (await get(url)).text();
+
+  // the runtime and the model, handed over instead of fetched by the
+  // Emscripten runtime on its own (this build reads instantiateWasm, not
+  // wasmBinary)
+  const fetchBytes = async (ext) => {
+    const url = Module.locateFile(`sherpa-onnx-wasm-main-asr.${ext}`);
+    return (await get(url)).arrayBuffer();
+  };
+  // let, and dropped once used: Module lives as long as the Worker
+  let [wasm, data] = await Promise.all(['wasm', 'data'].map(fetchBytes));
+  Module.getPreloadedPackage = () => {
+    const bytes = data;
+    data = null;
+    return bytes;
+  };
+  Module.instantiateWasm = (imports, receive) => {
+    WebAssembly.instantiate(wasm, imports)
+      .then(({ instance }) => receive(instance), (e) => Module.onAbort(e));
+    wasm = null;
+    return {};
   };
 
   const asrHelperSrc = await text(asrHelperUrl);
   (0, eval)(asrHelperSrc); // defines global createOnlineRecognizer/OnlineRecognizer/OnlineStream
 
   const mainSrc = await text(mainUrl);
-  (0, eval)(mainSrc); // runs createWasm(); -> fetches .wasm and the model-baked .data
+  (0, eval)(mainSrc); // runs createWasm() on the .wasm and .data handed over
 
   await readyPromise;
 
