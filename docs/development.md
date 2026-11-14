@@ -87,6 +87,23 @@ unless a node needs them; `numpy` comes from Pyodide. The wheel and the archive
 are fetched while Pyodide loads. `websockets` is not installed: no
 pipeline imports it.
 
+## Models read by transformers.js
+
+`whisper_asr` and `translate_opus` load their models through the **remote**
+branch of transformers.js (`env.allowRemoteModels = true`,
+`env.remoteHost = models_url`), not its **local** one
+(`env.localModelPath`): a bug in the tokenizer and processor existence check
+of `@huggingface/transformers@4.3.0` rejects any `localModelPath` that is an
+`http(s)` URL, the only form a browser can use, so the local branch never
+loads `tokenizer.json`.
+
+The same branch reads both layouts. With `models_url` set to
+`https://huggingface.co/` and a `revision`, the node reads
+`<model_id>/resolve/<revision>/`; with `models_url` pointing to `vendor/` and
+no `revision`, it reads `<model_id>/` as `build/vendor.py` lays it out.
+`examples/models.js` holds the revisions the demo pages use, the same commits
+as the `assets.toml` of the two nodes.
+
 ## Tests
 
 The tests are pages that run in the browser and write their outcome in
@@ -111,6 +128,6 @@ driving the browser.
 | `test/video-blur.html` | `--test-plugins --plugins examples/video-blur/plugins`, and `build/vendor.py examples/video-blur/plugins` | the video pipeline with synthetic frames: `?fps=24&inflight=3` |
 | `test/video-blur-canvas.html` | same as `video-blur.html` | same synthetic frames, but `background_blur` is dropped from the pipe and the compositing (background blur, soft mask edge) happens in the page's own canvas instead - compares directly against `video-blur.html`'s numbers |
 
-Serve the pages with `python3 serve.py 8765` (see the README). A background tab limits `setTimeout` to once a second: the tests that need
+Serve the pages with `python3 serve.py 8765` (see the [guide](guide.md)). A background tab limits `setTimeout` to once a second: the tests that need
 regular timing take it from a Worker. `supervisor`, `restart` and `lifecycle`
 expect a loss to be noticed within seconds: keep their tab in the foreground.
