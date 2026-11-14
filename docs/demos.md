@@ -1,7 +1,7 @@
 # Demos
 
-Six pages in `examples/` use the same API, and all but the first run real
-models:
+Six demos in `examples/`, eight pages, use the same API, and all but the
+microphone one run real models:
 `Juturna.create()`, `pipe.input().feed()`, `pipe.output().on('message')`.
 Each heavy node has a Worker of its own. Add `?telemetry` to the URL of any of
 them to see the messages each node receives and sends, live under the page.
@@ -99,7 +99,7 @@ Worker: `whisper_asr` (Whisper, speech to English text) and `translate_opus`
   default, `?debounce=`); Enter commits it to the history and starts a new
   line.
 
-Loading the two models takes about 2.5 s. On the JFK sample (11 s, fed in real
+Loading the two models takes about 2.7 s. On the JFK sample (11 s, fed in real
 time in 1 s chunks), a 4 s window takes 1.8 s to transcribe and 0.4 s to
 translate: its translation arrives 2.2 s after the chunk that closed the
 window.

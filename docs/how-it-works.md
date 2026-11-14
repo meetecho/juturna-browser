@@ -48,7 +48,7 @@ Python objects, which saves a serialization and a copy on each side, about
 A ring slot has a fixed size, `max_payload_bytes` (2,000,000 bytes by
 default): a message that does not fit fails with an error that names the key.
 Reading a message costs what the message weighs, not the slot size, but each
-ring reserves the address space of all its slots, 15 MB per queue at the
+ring reserves the address space of all its slots, about 16 MB per queue at the
 default. A ring holds `queue_capacity` messages (8 by default) before the
 sender waits. Image, audio and bytes payloads cross on a binary path; other
 payloads are pickled. The options are in the
@@ -94,7 +94,7 @@ Measured on a 12-core desktop, Chrome 157, at commit `db0897a` (2026-11-14), med
 | A 640×480 RGBA frame from one Worker to another | about 1.5 ms | half of a 2.9 ms round trip |
 | One more node in a pipeline | about 0.5 ms of delay | a node that passes a 640×480 frame on, in the same Worker |
 | A node that burns the CPU for 200 ms per message | 107 ms median delay for a probe in the same Worker, 2 ms with the node in another | a probe crossing the pipeline |
-| Loading Whisper and Opus, each in its Worker | about 2.5 s | `jt.pipeline()` of the live translation demo |
+| Loading Whisper and Opus, each in its Worker | about 2.7 s | `jt.pipeline()` of the live translation demo |
 
 ### Loading a demo
 

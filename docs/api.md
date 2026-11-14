@@ -111,9 +111,10 @@ the function that removes the listener.
 
 ### `pipe.onError(callback): unsubscribe`
 
-Errors that happen while feeding data (an invalid message, a message that does
-not fit the queues) and the loss of a Worker, as `Error` objects. Without a
-listener they go to `console.error`.
+Errors of `feed()` (an invalid message) and the loss of a Worker, as `Error`
+objects. Without a listener they go to `console.error`. A message too big for
+a queue between Workers does not reach `onError`: the node that sends it logs
+the error and counts it in `status().nodes[...].health.update_failures`.
 
 ### `pipe.onWorkerLost(callback): unsubscribe`
 
@@ -188,7 +189,9 @@ The message ids are counters of one Worker: identify a message by
   nodes: {
     mask: { status: 'component_running',
             health: { update_failures: 0, worker_failures: 0,
-                      source_failures: 0, last_failure_at: null } },
+                      source_failures: 0, rejected_items: 0,
+                      last_failure_at: null, last_failure: null,
+                      stuck_workers: [] } },
     // ...
   },
   workers: { main: 'pipeline_running', ml: 'restarting', cpu: 'lost' },
@@ -272,7 +275,7 @@ The keys of Juturna that matter here, in a pipeline configuration:
 
   Reading a message costs what the message weighs, not what `max_payload_bytes`
   says, so setting it to the biggest message of the pipeline costs no time. It
-  does reserve the address space: 15 MB per queue at the default. Only the
+  does reserve the address space: about 16 MB per queue at the default. Only the
   queues written to from another Worker are rings: the inbound queue of a node
   with an upstream in a different Worker. Every other queue is local.
 
@@ -298,7 +301,7 @@ The keys of Juturna that matter here, in a pipeline configuration:
 
 | `kind` | `payload` |
 |---|---|
-| `audio` | `audio` (`Float32Array`, or `Int16Array`, normalised to [-1, 1]), `sampling_rate`, `channels`, `start`, `end` |
+| `audio` | `audio` (`Float32Array`, or `Int16Array`, normalised to [-1, 1]), `sampling_rate`, `audio_format`, `channels`, `start`, `end` |
 | `image` | `image` (flat `Uint8Array`), `width`, `height`, `depth`, `pixel_format`, `timestamp` |
 | `bytes` | `cnt` (`Uint8Array`) |
 | `object` | any JSON-compatible fields |
@@ -318,7 +321,8 @@ the message is dropped.
 |---|---|
 | Invalid configuration, a node that cannot be built | `jt.pipeline()` rejects |
 | A Worker that does not answer before the pipeline runs | `Juturna.create()` or `jt.pipeline()` rejects; in `pipe.start()`, `pipe.onWorkerLost` |
-| Invalid message, message too big for the queues | `pipe.onError` |
+| Invalid message | `pipe.onError` |
+| Message too big for a queue between Workers | Logged by Juturna; `status().nodes[...].health.update_failures` of the sender counts it |
 | A Python exception inside a node | Logged by Juturna; `status().nodes[...].health` counts it. The node keeps running. |
 | A callback of `onTelemetry` or `output().on` that throws | `pipe.onError` |
 | Loss of a Worker | `pipe.onWorkerLost` and `pipe.onError`; `status()`; `pipe.onWorkerRestarted` if it comes back |
