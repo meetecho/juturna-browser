@@ -4,49 +4,14 @@
 <meta charset="utf-8">
 <title>juturna: live translation - microphone</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<style>
-  :root {
-    --bg: #0b0d10; --panel: #12151a; --line: #22262d; --text: #e6e8eb;
-    --muted: #9aa3ad; --accent: #6ee7c8; --accent2: #7aa2ff; --mono: ui-monospace, "SF Mono", Menlo, monospace;
-  }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0; background: var(--bg); color: var(--text);
-    font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
-  }
-  a { color: var(--accent2); }
-  code { font-family: var(--mono); background: #1a1e24; padding: 0 5px; border-radius: 4px; font-size: .9em; }
-  .wrap { max-width: 860px; margin: 0 auto; padding: 32px 24px 72px; }
-  .back { color: var(--muted); text-decoration: none; font-size: .88rem; }
-  .back:hover { color: var(--text); }
-  h1 { font-size: 1.5rem; margin: 14px 0 6px; }
-
-  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 20px 22px; margin-bottom: 20px; }
-  .panel h2 { margin: 0 0 16px; font-size: .8rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; font-weight: 600; }
-  .row { display: flex; gap: 20px; flex-wrap: wrap; }
-  label { display: flex; flex-direction: column; gap: 6px; font-size: .85rem; color: var(--muted); }
-  select, input[type="number"] {
-    background: #1a1e24; border: 1px solid var(--line); color: var(--text);
-    border-radius: 6px; padding: 7px 10px; font: inherit; font-family: var(--mono); font-size: .9rem;
-  }
-  select:disabled, input:disabled { opacity: .5; }
-
-  .actions { display: flex; gap: 10px; align-items: center; margin: 22px 0; }
-  .btn { padding: 10px 22px; border-radius: 8px; border: 1px solid var(--line); background: transparent;
-         color: var(--text); font-weight: 600; font-size: .92rem; cursor: pointer; font-family: inherit; }
-  .btn.primary { background: var(--accent); color: #04140f; border-color: var(--accent); }
-  .btn:disabled { opacity: .4; cursor: default; }
-
-  #lines p { background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
-             padding: 12px 16px; margin: 0 0 10px; }
-  #lines b { color: var(--text); }
-  #log { font-family: var(--mono); background: #1a1e24; border: 1px solid var(--line); border-radius: 8px;
-         padding: 12px 14px; font-size: .82rem; color: var(--muted); white-space: pre-wrap; min-height: 1.2em; }
-</style>
+<link rel="stylesheet" href="../demo.css">
 </head>
 <body>
-<div class="wrap">
-  <a class="back" href="../../index.html">← demos</a>
+<header class="brand"><div class="wrap">
+  <a class="logo" href="../../index.html"><picture><source srcset="../img/juturna-logo-dark.png" media="(prefers-color-scheme: dark)"><img src="../img/juturna-logo.png" alt="Juturna" width="45" height="40"></picture> demos</a>
+  <a class="back" href="../../index.html">← All demos</a>
+</div></header>
+<main class="wrap">
   <h1>Live translation - microphone</h1>
 
   <div class="panel">
@@ -67,7 +32,7 @@
         <label>capture chunk (ms)
           <input id="chunk-ms" type="number" min="20" max="1000" step="20" value="100" style="width:5.5em">
         </label>
-        <label>max threads <span title="onnxruntime-web's WASM pool, per node. Empty = auto (min(4, cores/2)).">ⓘ</span>
+        <label><span>max threads <span title="onnxruntime-web's WASM pool, per node. Empty = auto (min(4, cores/2)).">ⓘ</span></span>
           <input id="max-threads" type="number" min="1" max="16" step="1" placeholder="auto" style="width:5em">
         </label>
       </div>
@@ -81,7 +46,7 @@
 
   <div id="lines"></div>
   <pre id="log"></pre>
-</div>
+</main>
 <script type="module">
 import { Juturna } from '../../src/juturna.js';
 import { withTelemetry, showTelemetry } from '../telemetry.js';
