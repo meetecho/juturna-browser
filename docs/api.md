@@ -3,7 +3,7 @@
 Everything is exported from `src/juturna.js`:
 
 ```js
-import { Juturna } from './src/juturna.js';
+import { Juturna, prefetch } from './src/juturna.js';
 ```
 
 The configuration of a pipeline is the JSON of Juturna on desktop, with the
@@ -198,6 +198,31 @@ The message ids are counters of one Worker: identify a message by
 
 The nodes of a lost or restarting Worker are not listed.
 
+## `prefetch(urls, options?): Promise<void>`
+
+Fetches files into the cache the nodes read from (`juturna-models`, see
+`self.juturnaFetch` below), so that `jt.pipeline()` finds them there. It needs
+no `Juturna` instance: the page and its Workers share the cache.
+
+```js
+await prefetch(urls, { onProgress: ({ url, loaded, total }) => show(url, loaded, total) });
+```
+
+- `urls`: the files, as URLs or strings. The README of each example node lists
+  the files it fetches.
+- `onProgress({url, loaded, total})`: called as the bytes of a file arrive,
+  and once more when it is stored, with `loaded === total`. During the download
+  `total` comes from the `Content-Length` of the answer, `null` when the server
+  does not send it or compresses the file. A file already kept and unchanged
+  gets only that last call, once the server has answered `304` (both `null` if
+  its size is not known).
+
+It resolves once every file is stored, and rejects with an error that names
+the URL of the first file that failed; the others keep downloading and are
+stored. Await it
+before `jt.pipeline()`: a node that asks for a file `prefetch` is still
+fetching downloads it a second time.
+
 ## In a Worker: `self.juturnaFetch(url): Promise<Response>`
 
 For the JavaScript a node runs: fetches `url` like `fetch()`, and keeps the
@@ -205,12 +230,17 @@ file in the browser's Cache Storage (`juturna-models`) for the next visit. When
 a copy is there, it asks the server whether the file changed (a conditional
 request on its `Last-Modified` or `ETag`): an answer of `304` returns the copy,
 a new file replaces it, and a network error or a server error (`5xx`) returns
-the copy. A server that
-sends neither header gets the file downloaded every time.
+the copy. A server that sends neither header gets the file downloaded at
+every visit.
 
-Any other error answer (`404`) is returned as it is and not kept; a failure of the
-cache itself (no Cache Storage, out of quota) falls back to the network. A node
-that also runs outside juturna-browser uses `self.juturnaFetch ?? fetch`.
+The file is stored as it arrives and the caller gets the stored copy, so it is
+kept by the time the promise resolves. Requests for the same file at the same
+time share one download, and a file checked once in a page or a Worker is not
+checked again there (transformers.js asks for some files twice).
+
+Any other error answer (`404`) is returned as it is and not kept; a failure of
+the cache itself (no Cache Storage, out of quota) falls back to the network. A
+node that also runs outside juturna-browser uses `self.juturnaFetch ?? fetch`.
 
 ## Configuration
 

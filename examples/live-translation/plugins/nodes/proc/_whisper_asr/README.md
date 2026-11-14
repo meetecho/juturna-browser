@@ -53,6 +53,13 @@ quantized (MIT, at a fixed commit). `assets.toml` lists them with URLs and
 checksums; `python3 build/vendor.py <plugins folder>` fetches them into
 `vendor/`.
 
+At run time the node fetches, under `models_url/<model_id>/`, `config.json`,
+`generation_config.json`, `preprocessor_config.json`, `tokenizer.json`,
+`tokenizer_config.json`, `onnx/encoder_model_quantized.onnx` and
+`onnx/decoder_model_merged_quantized.onnx`, plus `wasm_bin_url` and
+`wasm_mjs_url`: the list to pass to `prefetch()`. They are kept in the browser
+between visits.
+
 ## Input message
 
 `Message[AudioPayload]`, mono, 16 kHz.

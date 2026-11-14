@@ -43,6 +43,13 @@ fetches them into `vendor/`. Only the pair `model_id` names is loaded at run
 time; the other two stay on disk unused unless another node instance, or a
 restart with a different configuration, asks for them.
 
+At run time the node fetches, under `models_url/<model_id>/`, `config.json`,
+`generation_config.json`, `tokenizer.json`, `tokenizer_config.json`,
+`onnx/encoder_model_quantized.onnx` and
+`onnx/decoder_model_merged_quantized.onnx`, plus `wasm_bin_url` and
+`wasm_mjs_url`: the list to pass to `prefetch()`. They are kept in the browser
+between visits.
+
 ## Input message
 
 `Message[ObjectPayload]`.

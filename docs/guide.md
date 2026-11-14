@@ -210,17 +210,31 @@ would be downloaded at every visit.
 
 ## Models between visits
 
-`PersonMask`, `DenoiseDFN` and `TranscriberKrokoWasm` keep their models and
-their `.wasm` runtimes in the browser's Cache Storage: at the next visit each
-of those files costs a request answered `304`, not a download. A file that
-changed on the server is downloaded again. The small JavaScript modules they
-load with `import()` are left to the browser's HTTP cache. Nothing removes a
-file that is no longer asked for: `caches.delete('juturna-models')`, or clearing
-the site data, empties the cache.
-`WhisperASR` and `TranslateOpus` load through transformers.js, which keeps its
-files in a cache of its own (`transformers-cache`) and does not check them
-again: a model changed under the same URL stays stale there until the site data
-is cleared.
+The example nodes keep their models and their `.wasm` runtimes in the
+browser's Cache Storage (`juturna-models`): at the next visit each of those
+files costs a request answered `304`, not a download, and a file that changed
+on the server is downloaded again. `WhisperASR` and `TranslateOpus` route the
+requests of transformers.js there too. The small JavaScript modules the nodes
+load with `import()` are left to the browser's HTTP cache.
+
+A page can fetch the files before the pipeline needs them, and show progress:
+
+```js
+import { Juturna, prefetch } from './src/juturna.js';
+
+await prefetch(modelUrls, { onProgress: ({ url, loaded, total }) => bar.set(url, loaded, total) });
+const jt = await Juturna.create();
+const pipe = await jt.pipeline(config);   // the files are in the cache: 304s only
+```
+
+The README of each example node lists the files to pass. Await `prefetch`
+before `jt.pipeline()`, or a file may be downloaded twice.
+
+Nothing removes a file that is no longer asked for:
+`caches.delete('juturna-models')`, or clearing the site data, empties the
+cache. Pages that ran an older version of the transformers.js nodes also have a
+`transformers-cache`, which is no longer read; `caches.delete('transformers-cache')`
+removes it.
 
 The browser may evict the cache when the disk runs short. A page that wants to
 keep the models asks once with `navigator.storage.persist()` (the page, not a
