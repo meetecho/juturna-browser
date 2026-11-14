@@ -121,10 +121,13 @@ _STEP = """
 
 # Flushes the utterance in progress on stop() - without it, audio spoken
 # right before Stop is lost (the endpoint detector needs trailing
-# silence to fire, which Stop never provides).
+# silence to fire, which Stop never provides). The model emits a word
+# only about a second of audio later: that second is fed here as silence,
+# or the last words would stay inside it (half a second is not enough).
 _FLUSH = """
 (bridge) => {
   const { recognizer, stream } = bridge;
+  stream.acceptWaveform(16000, new Float32Array(16000));
   stream.inputFinished();
   while (recognizer.isReady(stream)) {
     recognizer.decode(stream);
@@ -216,18 +219,25 @@ class TranscriberKrokoWasm(Node[AudioPayload, ObjectPayload]):
         self.transmit(out)
 
     def stop(self):  # noqa: D102
-        if self._bridge is not None and self._flush is not None:
-            result = self._flush(self._bridge)
-            text = str(result.text).strip()
-
-            if text:
-                out = Message[ObjectPayload](
-                    creator=self.name,
-                    payload=ObjectPayload(
-                        text=text, start=self._last_end, end=self._last_end
-                    ),
-                )
-                out.meta['final'] = True
-                self.transmit(out)
-
+        # first the audio still in the queue, which the base class consumes
+        # as it stops the node: flushed before that, it would come out after
+        # the final transcript, as partial results nobody completes
         super().stop()
+
+        if self._bridge is None:
+            return
+
+        result = self._flush(self._bridge)
+        # stop() is called once per layer and once for the pipeline
+        self._bridge = None
+        text = str(result.text).strip()
+
+        if text:
+            out = Message[ObjectPayload](
+                creator=self.name,
+                payload=ObjectPayload(
+                    text=text, start=self._last_end, end=self._last_end
+                ),
+            )
+            out.meta['final'] = True
+            self.transmit(out)
