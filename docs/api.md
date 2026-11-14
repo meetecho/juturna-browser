@@ -14,7 +14,9 @@ keys described in [Configuration](#configuration).
 ### `Juturna.create(options?): Promise<Juturna>`
 
 Starts the Workers, loads Pyodide and installs Juturna in each of them, all in
-parallel. It takes about 3 to 4 seconds, however many Workers there are.
+parallel. It takes about 3 to 4 seconds, however many Workers there are. It
+rejects, and leaves no Worker running, when a Worker fails to start or does
+not answer within `supervise.buildTimeoutMs`.
 
 | Option | Default | |
 |---|---|---|
@@ -34,13 +36,22 @@ parallel. It takes about 3 to 4 seconds, however many Workers there are.
   tab, where timers run once a second, and in a hidden one, where they run once
   a minute, that takes longer than `timeoutMs`: minutes, with the defaults, in
   a hidden tab.
+- `buildTimeoutMs` (`300000`): the time each of `Juturna.create()`,
+  `jt.pipeline()` and `pipe.start()` has. Nothing pings a Worker before its
+  nodes run, so this is what notices one that vanished during them. It counts
+  the download of the nodes' models in the first `pipeline()`: raise it for a
+  page with heavy models on slow connections.
 - `poisonRings` (`true`): whether the queues that lead to the nodes of a lost
   Worker are closed. `false` exists to test what closing them changes; do not
   use it otherwise.
-- `restart` (`{maxRestarts: 0, delayMs: 500}`): with `maxRestarts` above 0, a
-  lost Worker is built again after `delayMs`, at most that many times for each
-  Worker. Off by default: a node that runs out of memory will do it again, and
-  a loop of restarts is worse than a clean stop. See
+- `restart` (`{maxRestarts: 0, delayMs: 500, timeoutMs: 30000}`): with
+  `maxRestarts` above 0, a lost Worker is built again after `delayMs`, at most
+  that many times for each Worker. Off by default: a node that runs out of memory will do it again, and
+  a loop of restarts is worse than a clean stop. A restart has `timeoutMs`,
+  from the start of the new Worker to its nodes running: past it the Worker is
+  lost again, and the next attempt follows if one is left. Raise it when the
+  nodes of a Worker take longer than that to warm up; it is a number of
+  milliseconds, and the limit cannot be removed. See
   [Lost Workers](guide.md#lost-workers) for what a restart does and does not
   bring back.
 
@@ -51,7 +62,11 @@ of them the nodes it hosts, and connects the queues between Workers. One
 pipeline per `Juturna` instance: a second call rejects.
 
 It rejects when the configuration contains a cycle, and with the error of
-Juturna when a node cannot be built (an unknown `type`, an invalid argument).
+Juturna when a node cannot be built (an unknown `type`, an invalid argument);
+the instance can then build another pipeline. It also rejects when it takes
+longer than `supervise.buildTimeoutMs` (`pipeline not built within ... ms`):
+the instance is then terminated, a further `pipeline()` on it rejects, and the
+page creates another instance.
 
 ### `jt.terminate()`
 
@@ -125,8 +140,10 @@ or use `pipe.telemetry()`, which does.
 
 ### `pipe.start(): Promise<void>`
 
-Starts the nodes of every Worker and starts pinging the Workers. A pipeline
-that was stopped cannot be started again: destroy it and build another.
+Starts the nodes of every Worker and starts pinging the Workers. A Worker that
+does not answer within `supervise.buildTimeoutMs` is lost (`not started within
+... ms`), and restarted if `supervise.restart` allows it. A pipeline that was
+stopped cannot be started again: destroy it and build another.
 
 ### `pipe.stop(): Promise<void>`
 
@@ -134,6 +151,8 @@ Stops the pipeline in the same order as on desktop, across Workers: the nodes of
 each layer of the graph are sent a stop and joined before the next layer, so
 what an upstream node sent last is still consumed downstream. It takes about
 two seconds per node at most (the join timeout of Juturna). Lost Workers are skipped.
+A restart under way is waited for first, up to `restart.timeoutMs`; `destroy()`
+does the same.
 
 ### `pipe.destroy(): Promise<void>`
 
@@ -252,6 +271,7 @@ the message is dropped.
 | What | Where it shows |
 |---|---|
 | Invalid configuration, a node that cannot be built | `jt.pipeline()` rejects |
+| A Worker that does not answer before the pipeline runs | `Juturna.create()` or `jt.pipeline()` rejects; in `pipe.start()`, `pipe.onWorkerLost` |
 | Invalid message, message too big for the queues | `pipe.onError` |
 | A Python exception inside a node | Logged by Juturna; `status().nodes[...].health` counts it. The node keeps running. |
 | A callback of `onTelemetry` or `output().on` that throws | `pipe.onError` |

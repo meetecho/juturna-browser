@@ -20,10 +20,27 @@
 import { poisonRing, repairRing } from './ring.js';
 
 const DEFAULT_BASE = new URL('../dist/', import.meta.url);
-const DEFAULT_SUPERVISE = { pingMs: 1000, timeoutMs: 5000, poisonRings: true, restart: { maxRestarts: 0, delayMs: 500 } };
+const DEFAULT_SUPERVISE = {
+  pingMs: 1000, timeoutMs: 5000, poisonRings: true, buildTimeoutMs: 300000,
+  restart: { maxRestarts: 0, delayMs: 500, timeoutMs: 30000 }
+};
 const DEFAULT_WORKER = 'main';
 
 const workerOf = (node) => node.worker ?? DEFAULT_WORKER;
+
+// `promise`, or a rejection once `ms` have passed (then `onTimeout()`):
+// nobody pings a Worker before its nodes run, so one that vanished silently
+// would never be noticed
+function bounded(promise, ms, message, onTimeout = () => {}) {
+  let timer;
+  const overdue = new Promise((resolve, reject) => {
+    timer = setTimeout(() => {
+      reject(new Error(`${message} within ${ms} ms`));
+      onTimeout();               // after: what it rejects must not win the race
+    }, ms);
+  });
+  return Promise.race([promise, overdue]).finally(() => clearTimeout(timer));
+}
 
 export class Juturna {
   #base;
@@ -45,8 +62,8 @@ export class Juturna {
   /**
    * Start the Workers, load Pyodide and install Juturna in each, in parallel.
    * @param {{base?: URL|string, pyodide?: string, pyodideBase?: URL|string, workers?: string[],
-   *   supervise?: {pingMs?: number, timeoutMs?: number, poisonRings?: boolean,
-   *   restart?: {maxRestarts?: number, delayMs?: number}}}} options
+   *   supervise?: {pingMs?: number, timeoutMs?: number, poisonRings?: boolean, buildTimeoutMs?: number,
+   *   restart?: {maxRestarts?: number, delayMs?: number, timeoutMs?: number}}}} options
    *   `base` is the folder with the artifacts of build/build.py; `pyodide` is
    *   the version loaded from the jsDelivr CDN, which cannot be checked with an
    *   integrity hash: `pyodideBase`, the URL of a folder with a copy of that
@@ -57,15 +74,19 @@ export class Juturna {
    *   `timeoutMs`, is lost (a node that keeps the CPU busy for longer than
    *   that needs a higher value). `poisonRings: false` leaves the queues of
    *   a lost Worker as they are (only useful to test what that changes).
+   *   `buildTimeoutMs` is the time each of `create()`, `pipeline()` and
+   *   `start()` has, before anything pings the Workers.
    *   With `restart.maxRestarts` above 0 (it is 0), a lost Worker is rebuilt
    *   after `delayMs`, up to that many times: its nodes start again from
-   *   scratch, and what was in the queues that led to them is gone.
+   *   scratch, and what was in the queues that led to them is gone. A
+   *   restart that takes longer than `restart.timeoutMs` has failed.
    */
   static async create({ base = DEFAULT_BASE, pyodide = 'v314.0.6', pyodideBase, workers = [DEFAULT_WORKER], supervise } = {}) {
     if (!/^v\d+\.\d+\.\d+$/.test(pyodide)) throw new Error(`not a Pyodide version: ${pyodide}`);
     const jt = new Juturna(base, pyodideBase ? new URL(pyodideBase, location.href).href : pyodide, supervise);
     try {
-      await Promise.all(workers.map((name) => jt.#spawn(name)));
+      const spawned = Promise.all(workers.map((name) => jt.#spawn(name)));
+      await bounded(spawned, jt.#supervise.buildTimeoutMs, 'Workers not started');
     } catch (error) {
       jt.terminate();            // the caller gets no instance to do it with
       throw error;
@@ -76,7 +97,13 @@ export class Juturna {
   /** Build and warm up a pipeline. Only one at a time per instance. */
   async pipeline(config) {
     if (this.#pipeline) throw new Error('this Juturna instance already has a pipeline');
+    if (this.#stopping) throw new Error('this Juturna instance was terminated');
+    // a Worker that does not answer cannot be used again, and a slow one must
+    // not finish building after the rejection: the instance ends
+    return bounded(this.#build(config), this.#supervise.buildTimeoutMs, 'pipeline not built', () => this.terminate());
+  }
 
+  async #build(config) {
     const nodes = config.pipeline.nodes;
     const names = [...new Set(nodes.map(workerOf))];
     await Promise.all(names.map((name) => this.#spawn(name)));
@@ -120,6 +147,15 @@ export class Juturna {
   // -- internals, used by Pipeline -----------------------------------------
 
   _link(name) { return this.#links.get(name); }
+
+  // start the nodes of a Worker; one that does not answer in time is lost, as
+  // the monitor would do once it pinged it
+  _start(name) {
+    const link = this.#links.get(name);
+    const { buildTimeoutMs } = this.#supervise;
+    const reason = `not started within ${buildTimeoutMs} ms`;
+    return bounded(link.call('start'), buildTimeoutMs, 'not started', () => this.#lost(link, reason));
+  }
 
   // stop() or destroy() begins: no restart from now on, and one under way
   // must finish first
@@ -188,9 +224,9 @@ export class Juturna {
     if (this.#stopping) return this.#pipeline._restartCancelled(name);
 
     this.#links.delete(name);
+    const { timeoutMs } = this.#supervise.restart;
     try {
-      await this.#spawn(name);
-      await this.#pipeline._rebuild(name);
+      await bounded(this.#spawn(name).then(() => this.#pipeline._rebuild(name)), timeoutMs, 'not rebuilt');
       this.#links.get(name).lastPong = performance.now();
       this.#pipeline._workerRestarted(name, attempt);
     } catch (error) {
@@ -384,7 +420,8 @@ class Pipeline {
   /** Every Worker starts at once: what a node sends to one still to start
    *  waits in the queue. */
   async start() {
-    await this.#all('start');
+    const alive = this.#workers.filter((name) => !this.#lost.has(name));
+    await this.#settle(alive.map((name) => [name, this.#jt._start(name)]));
     this.#jt._supervise();
   }
 
