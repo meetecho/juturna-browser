@@ -57,14 +57,15 @@ without `background_blur`: only `person_mask` runs, and the page's own canvas
 does the compositing (`filter: blur()` for the background, `drawImage`
 respecting the per-pixel alpha of the mask for the soft edge).
 
-Measured on a 12-core desktop, Chrome 157, at commit `db0897a` (2026-11-14), median of three runs:
+Measured on a 12-core desktop, Chrome 157, at commit `db0897a` (2026-11-14). The synthetic rows are the median of three runs; the webcam rows are one session, medians of the last 60 frames:
 
 | Run | Frames | Median delay | Steps |
 |---|---|---|---|
 | `test/video-blur.html?fps=24&inflight=3`, synthetic 640×480 frames | 24.7 fps, 2 of 73 frames dropped | 51 ms | 17 ms segmentation, 21 ms blur |
 | Same, at 30 fps | 30 fps, 4 of 71 frames dropped | 54 ms | 19 ms segmentation, 23 ms blur |
-| Webcam at 24 fps | 24 fps | 72 ms | 21 ms segmentation, 26 ms blur |
+| Webcam at 24 fps | 24.1 fps, 8 of 2186 frames dropped | 70 ms | 24 ms segmentation, 26 ms blur |
 | `test/video-blur-canvas.html?fps=24&inflight=3`, synthetic frames | 0 dropped (2 with `video-blur.html`) | 33 ms (51 ms with `video-blur.html`) | 8 ms of canvas compositing instead of 21 ms of numpy blur |
+| `canvas.html`, webcam at 24 fps | 23.8 fps, 0 frames dropped | 26 ms | 16 ms segmentation, 2.9 ms of canvas compositing |
 
 Compositing on the canvas saves a Worker and loses nothing: the segmentation
 is the same.
