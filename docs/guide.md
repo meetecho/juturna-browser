@@ -104,8 +104,8 @@ nodes: [
 
 A Worker is one thread with one Pyodide. A node that keeps the CPU busy holds
 up every other node of its Worker, so it belongs in a Worker of its own. In a
-test, a probe crossing the pipeline had a median delay of 132 ms with a node
-burning the CPU for 200 ms per message in the same Worker, and 4 ms with the
+test, a probe crossing the pipeline had a median delay of 107 ms with a node
+burning the CPU for 200 ms per message in the same Worker, and 2 ms with the
 node in another. Each Worker costs memory (a Pyodide instance) and its start,
 which happens in parallel with the others.
 
@@ -197,7 +197,7 @@ context that may wait.
 A node runs its `update()` for one message at a time and keeps the Worker's
 thread while it does. Keep an eye on what it costs per message: at 24 fps it
 must stay well under 42 ms, including the time to receive and send the frame
-(about 1 ms per hop for 640×480 RGBA).
+(about 1.5 ms per hop for 640×480 RGBA).
 
 A node that loads files it does not ship, such as a model, declares them in an
 `assets.toml`: see [Development](development.md#third-party-files-of-the-nodes).
