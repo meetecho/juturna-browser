@@ -6,14 +6,14 @@ Worker is the library as it is on a server, with the browser transport
 instead of threads; juturna-browser starts the Workers, connects them and
 gives the page an API.
 
-```
-page                Worker "main"                Worker "ml"          Worker "cpu"
- |  feed()            BrowserInput                 person_mask       background_blur
- |------------------>     |                           |                     |
- |                        +--- shared-memory queue --->+-- queue ----------->+
- |                                                                          |
- |<--- postMessage ---------------------------------------------------------+ (via main)
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="img/how-it-works-dark.svg">
+  <img src="img/how-it-works-light.svg" width="700" alt="The page calls feed(), which reaches BrowserInput in Worker main; BrowserInput sends to person_mask in Worker ml, which sends to background_blur in Worker cpu, which sends back to BrowserOutput in Worker main, through rings in shared memory; BrowserOutput delivers to the page through on('message').">
+</picture>
+
+**Figure 1.** The background blur demo across three Workers: the page talks to
+Worker `main` with `postMessage`, and the nodes of different Workers pass
+messages through rings in shared memory.
 
 ## Workers
 
