@@ -201,6 +201,30 @@ must stay well under 42 ms, including the time to receive and send the frame
 
 A node that loads files it does not ship, such as a model, declares them in an
 `assets.toml`: see [Development](development.md#third-party-files-of-the-nodes).
+It fetches them with `self.juturnaFetch(url)`, which keeps them in the browser
+between visits (see [Models between visits](#models-between-visits)). A file
+the node hands to a runtime, such as the `.wasm` of onnxruntime-web or of an
+Emscripten build, is fetched the same way and passed over
+(`ort.env.wasm.wasmBinary`, `Module.instantiateWasm`): left to the runtime, it
+would be downloaded at every visit.
+
+## Models between visits
+
+`PersonMask`, `DenoiseDFN` and `TranscriberKrokoWasm` keep their models and
+their `.wasm` runtimes in the browser's Cache Storage: at the next visit each
+of those files costs a request answered `304`, not a download. A file that
+changed on the server is downloaded again. The small JavaScript modules they
+load with `import()` are left to the browser's HTTP cache. Nothing removes a
+file that is no longer asked for: `caches.delete('juturna-models')`, or clearing
+the site data, empties the cache.
+`WhisperASR` and `TranslateOpus` load through transformers.js, which keeps its
+files in a cache of its own (`transformers-cache`) and does not check them
+again: a model changed under the same URL stays stale there until the site data
+is cleared.
+
+The browser may evict the cache when the disk runs short. A page that wants to
+keep the models asks once with `navigator.storage.persist()` (the page, not a
+Worker, can ask; Chrome answers without a prompt).
 
 ## Watch the messages
 
