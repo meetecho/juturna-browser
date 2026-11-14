@@ -23,21 +23,25 @@ from juturna.components import Node
 from juturna.payloads import ObjectPayload
 
 _LOAD = """
-(async (transformersUrl, wasmMjsUrl, wasmBinUrl, modelsUrl, modelId, maxThreads) => {
+(async (transformersUrl, wasmMjsUrl, wasmBinUrl, modelsUrl, modelId, revision, maxThreads) => {
   const { pipeline, env } = await import(transformersUrl);
   // transformers.js@4.3.0 workaround: the "local" path pre-check never
   // matches an http(s) URL, so the "remote" branch is used instead.
   env.allowLocalModels = false;
   env.allowRemoteModels = true;
   env.remoteHost = modelsUrl;
-  env.remotePathTemplate = '{model}/';
+  // a revision means a Hugging Face layout, none the vendor/ one
+  env.remotePathTemplate = revision ? '{model}/resolve/{revision}/' : '{model}/';
   env.backends.onnx.wasm.wasmPaths = { mjs: wasmMjsUrl, wasm: wasmBinUrl };
   // Made explicit so maxThreads can actually override
   // onnxruntime-web's own min(4, ceil(cores/2)) default.
   const cores = navigator.hardwareConcurrency || 4;
   env.backends.onnx.wasm.numThreads =
     maxThreads ?? Math.min(4, Math.ceil(cores / 2));
-  return await pipeline('translation', modelId, { dtype: 'q8' });
+  return await pipeline('translation', modelId, {
+    dtype: 'q8',
+    ...(revision && { revision }),
+  });
 })
 """
 
@@ -61,6 +65,7 @@ class TranslateOpus(Node[ObjectPayload, ObjectPayload]):
         model_id: str = 'Xenova/opus-mt-en-it',
         source_lang: str = 'en',
         target_lang: str = 'it',
+        revision: str = '',
         max_threads: int | None = None,
         **kwargs,
     ):
@@ -89,6 +94,11 @@ class TranslateOpus(Node[ObjectPayload, ObjectPayload]):
             Language code the model translates from.
         target_lang : str
             Language code the model translates to.
+        revision : str
+            Commit of the model repository on Hugging Face, with ``models_url``
+            set to ``https://huggingface.co/``: the files are read from
+            ``<model_id>/resolve/<revision>/``. Empty (default) for a folder
+            laid out by ``build/vendor.py``.
         max_threads : int | None
             Cap on onnxruntime-web's WASM thread pool for this node's
             Worker. ``None`` uses the same ``min(4, ceil(cores / 2))`` a
@@ -108,6 +118,7 @@ class TranslateOpus(Node[ObjectPayload, ObjectPayload]):
         self._wasm_bin_url = wasm_bin_url
         self._models_url = models_url
         self._model_id = model_id
+        self._revision = revision
         self._source_lang = source_lang
         self._target_lang = target_lang
         self._max_threads = max_threads
@@ -123,6 +134,7 @@ class TranslateOpus(Node[ObjectPayload, ObjectPayload]):
                 self._wasm_bin_url,
                 self._models_url,
                 self._model_id,
+                self._revision,
                 self._max_threads,
             )
         )

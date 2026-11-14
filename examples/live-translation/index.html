@@ -85,6 +85,7 @@
 <script type="module">
 import { Juturna } from '../../src/juturna.js';
 import { withTelemetry, showTelemetry } from '../telemetry.js';
+import { models } from '../models.js';
 
 const MODEL_ID = {
   it: 'Xenova/opus-mt-en-it',
@@ -127,7 +128,7 @@ function buildConfig() {
           transformers_url: vendor('whisper_asr/transformers/transformers.min.js'),
           wasm_mjs_url: vendor('whisper_asr/transformers/ort-wasm-simd-threaded.asyncify.mjs'),
           wasm_bin_url: vendor('whisper_asr/transformers/ort-wasm-simd-threaded.asyncify.wasm'),
-          models_url: vendor('whisper_asr/models/'),
+          ...models('whisper_asr', 'Xenova/whisper-base'),
           window_seconds: windowSeconds, overlap_seconds: Math.min(0.5, windowSeconds / 4),
           max_threads: maxThreads,
         } },
@@ -135,8 +136,8 @@ function buildConfig() {
           transformers_url: vendor('translate_opus/transformers/transformers.min.js'),
           wasm_mjs_url: vendor('translate_opus/transformers/ort-wasm-simd-threaded.asyncify.mjs'),
           wasm_bin_url: vendor('translate_opus/transformers/ort-wasm-simd-threaded.asyncify.wasm'),
-          models_url: vendor('translate_opus/models/'),
-          model_id: MODEL_ID[targetLang], source_lang: 'en', target_lang: targetLang,
+          ...models('translate_opus', MODEL_ID[targetLang]),
+          source_lang: 'en', target_lang: targetLang,
           max_threads: maxThreads,
         } },
         { name: 'out', type: 'BrowserOutput', configuration: {} },

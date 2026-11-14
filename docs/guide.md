@@ -1,33 +1,32 @@
 # Guide
 
-## How it works
+This guide builds a first pipeline in a page, then covers the tasks that come
+next: feeding audio and video, spreading nodes over several Workers, handling
+a Worker that is lost, writing a node and watching the messages. How the
+pieces work underneath is in [How it works](how-it-works.md); every function
+is in the [API reference](api.md).
 
-A pipeline runs in Pyodide Workers. The page never runs a node: it hands
-messages to the pipeline and receives messages from it.
+## Your first pipeline
+
+**1. Build the bundle.** `dist/` holds a wheel of Juturna and the browser
+nodes, built from checkouts of the `juturna` and `juturna-nodes` repositories:
 
 ```
-page                Worker "main"                Worker "ml"          Worker "cpu"
- |  feed()            BrowserInput                 person_mask       background_blur
- |------------------>     |                           |                     |
- |                        +--- shared-memory queue --->+-- queue ----------->+
- |                                                                          |
- |<--- postMessage ---------------------------------------------------------+ (via main)
+python3 build/build.py --juturna /path/to/juturna --nodes /path/to/juturna_nodes
 ```
 
-- Each Worker loads Pyodide and Juturna, and builds the nodes the configuration
-  assigns to it. Juturna is the library as it is on desktop, with the browser
-  transport instead of threads.
-- The messages between nodes travel through queues on `SharedArrayBuffer`. A
-  node writes to a node of another Worker as to any other: Juturna hides the
-  queue. Several Workers can write to the same node.
-- The page and the Workers talk with `postMessage`. `feed()` transfers the
-  buffers of a message (zero copy) and `on('message')` gets a typed array.
+Run it again after any change in those checkouts. `JUTURNA_REPO` and
+`JUTURNA_NODES_REPO` can replace `--juturna` and `--nodes`.
 
-The page must be served with `Cross-Origin-Opener-Policy: same-origin` and
-`Cross-Origin-Embedder-Policy: require-corp`, otherwise `SharedArrayBuffer` does
-not exist. `serve.py` does it.
+**2. Serve the folder.** `serve.py` sends the isolation headers that
+`SharedArrayBuffer` needs:
 
-## A first pipeline
+```
+python3 serve.py 8765
+```
+
+**3. Write the page.** A module script imports the API from `src/`, builds
+the pipeline, feeds it and listens to its output:
 
 ```js
 import { Juturna } from './src/juturna.js';
@@ -52,9 +51,14 @@ jt.terminate();
 ```
 
 `BrowserInput` and `BrowserOutput` are the two ends of the pipeline: what
-the page feeds and what it receives. Between them go the nodes that do the work.
+the page feeds and what it receives. Between them go the nodes that do the
+work. `Juturna.create()` takes about 3 to 4 seconds: it loads Pyodide and
+installs Juturna in every Worker.
 
-## Feeding audio from the microphone
+<http://localhost:8765/examples/microphone.html> is the same pipeline fed by
+the microphone, plus an image round trip. Accept the microphone permission.
+
+## Feed audio from the microphone
 
 The page captures the audio; `examples/microphone.html` is a complete example.
 Capturing in an `AudioWorklet` and posting to a `port()` keeps the main thread
@@ -66,7 +70,10 @@ workletNode.port.postMessage({ port }, [port]);              // hand it to the w
 // in the worklet: port.postMessage({ kind: 'audio', payload: { audio, sampling_rate: 16000 } }, [audio.buffer]);
 ```
 
-## Feeding video
+Sampling rate, chunking and timestamps travel in the messages: nothing in the
+nodes is configured about the page.
+
+## Feed video and drop frames
 
 A frame is an `image` message. `examples/video-blur` reads the camera with a
 `<video>` and a canvas, and feeds `getImageData()` at 24 fps:
@@ -81,9 +88,10 @@ slower than the camera: `feed()` does not push back, the frames pile up and so
 does the delay. The demo counts the frames in flight (fed and not yet shown)
 and drops the new ones beyond three.
 
-## Several Workers
+## Run nodes in several Workers
 
-Give a node a `"worker"` and it runs there:
+Give a node a `"worker"` and it runs there; without the key it runs in
+`main`:
 
 ```js
 nodes: [
@@ -101,10 +109,6 @@ burning the CPU for 200 ms per message in the same Worker, and 4 ms with the
 node in another. Each Worker costs memory (a Pyodide instance) and its start,
 which happens in parallel with the others.
 
-The workers of a pipeline are stopped in the order of the graph, so a Worker
-that still holds messages for a downstream node is stopped first, and the
-downstream node consumes them.
-
 ## Lost Workers
 
 A Worker can be lost: the browser kills it (out of memory), it fails with an
@@ -120,18 +124,13 @@ When a Worker is lost:
    dropped, and the node logs a warning once;
 3. `pipe.onWorkerLost({worker, reason, willRestart})` and `pipe.onError` fire,
    and `status()` shows the Worker as `lost`;
-4. the queues it was writing to are repaired, see below.
+4. the queues it was writing to are repaired (see
+   [How it works](how-it-works.md#a-worker-lost-in-the-middle-of-a-write)).
 
 The rest of the pipeline keeps running, and `stop()` and `destroy()` work on
-it. By default nothing restarts on its own and no state is recovered: what to do
-is up to the application, and the usual answer is to stop the pipeline, destroy
-it and build a new one.
-
-A Worker that dies while it writes a message has claimed a place in a queue
-and not filled it, and the node that reads that queue would wait for it for
-ever. The page fills in the place with an empty message, which the reader
-skips. It does so only for a place that stays claimed and unfilled for 250 ms,
-much longer than a write takes.
+it. By default nothing restarts on its own and no state is recovered: what to
+do is up to the application, and the usual answer is to stop the pipeline,
+destroy it and build a new one.
 
 A Worker that is busy, not lost, for longer than `timeoutMs` counts as lost:
 raise it for a node that legitimately takes longer.
@@ -160,9 +159,9 @@ After `maxRestarts` the Worker stays lost. Leave it at 0 unless the nodes of
 that Worker can come back from nothing: a node that runs out of memory will
 run out again.
 
-## Writing a node
+## Write a node
 
-A node is a Juturna node. On desktop you write it as described in the Juturna
+A node is a Juturna node. On a server you write it as described in the Juturna
 documentation; in the browser it runs in Pyodide, so numpy is available and
 most of what has native code is not. Put it in a plugin folder:
 
@@ -173,21 +172,41 @@ my-plugins/
     config.toml
 ```
 
-`my_node.py` holds a class that extends `Node` (the folder is `_` plus the module name),
-`config.toml` holds the default arguments under `[arguments]`. Build the
-folder into the bundle with `build/build.py --plugins my-plugins`, and use
-`type: 'extensions.nodes.MyNode'` (the class name) in the configuration. `examples/video-blur/plugins` has two
-complete nodes, with a README each.
+`my_node.py` holds a class that extends `Node` (the folder is `_` plus the
+module name), `config.toml` holds the default arguments under `[arguments]`.
+Build the folder into the bundle with `build/build.py --plugins my-plugins`,
+and use `type: 'extensions.nodes.MyNode'` (the class name) in the
+configuration. `examples/video-blur/plugins` has two complete nodes, with a
+README each.
 
-A node can call JavaScript. `person_mask` loads onnxruntime-web and runs a model
-that way: `run_js` evaluates a function, and `run_sync` waits for its promise.
-`run_sync` works inside `warmup()` and `update()`, which run in a context that
-may wait.
+A node can call JavaScript. `person_mask` loads onnxruntime-web and runs a
+model that way: `run_js` evaluates a function, and `run_sync` waits for its
+promise. `run_sync` works inside `warmup()` and `update()`, which run in a
+context that may wait.
 
 A node runs its `update()` for one message at a time and keeps the Worker's
 thread while it does. Keep an eye on what it costs per message: at 24 fps it
 must stay well under 42 ms, including the time to receive and send the frame
 (about 1 ms per hop for 640×480 RGBA).
+
+A node that loads files it does not ship, such as a model, declares them in an
+`assets.toml`: see [Development](development.md#third-party-files-of-the-nodes).
+
+## Watch the messages
+
+With `"telemetry": {"name": "browser"}` in the `pipeline` section of the
+configuration, every Worker records the messages its nodes receive (`rx`) and
+send (`tx`) and posts them to the page. Without the key the telemetry is off.
+
+```js
+const stop = pipe.onTelemetry(({ worker, records }) => { /* a batch as it is produced */ });
+const latest = await pipe.telemetry();   // all Workers merged and sorted by ts
+```
+
+A record is `{ ts, evt, node, origin, msg_id, src_id, size, worker }`; the
+[API reference](api.md#pipetelemetry-promiseobject) has the details. The
+example pages turn it on with `?telemetry` and print a table per node (`rx`,
+`tx`, bytes sent, `tx/s`), refreshed every second (`examples/telemetry.js`).
 
 ## A configuration is code
 
