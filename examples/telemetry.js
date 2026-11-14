@@ -37,7 +37,6 @@ export const showTelemetry = (pipe) => {
 
   const panel = document.getElementById('telemetry') ?? document.body.appendChild(document.createElement('pre'));
   panel.id = 'telemetry';
-  panel.style.cssText = 'font: 12px monospace; margin-top: 1em';
 
   const stats = {};
   const unsubscribe = pipe.onTelemetry(({ records }) => tally(stats, records));

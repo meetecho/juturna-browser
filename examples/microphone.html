@@ -1,13 +1,32 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><title>juturna facade: microphone</title></head>
+<head>
+<meta charset="utf-8">
+<title>juturna facade: microphone</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="demo.css">
+</head>
 <body>
-<button id="start">Start</button> <button id="image" disabled>Send test image</button>
-<button id="stop" disabled>Stop</button>
-<p>audio chunks: <b id="count">0</b> - rms: <b id="rms">-</b> - out of order: <b id="ooo">0</b>
-  <meter id="meter" min="0" max="0.5" value="0" style="width:300px"></meter></p>
-<p>image round trip: <b id="imgres">-</b> <canvas id="cv" width="64" height="48" style="vertical-align:middle;border:1px solid #888"></canvas></p>
-<pre id="log"></pre>
+<header class="brand"><div class="wrap">
+  <a class="logo" href="../index.html"><picture><source srcset="img/juturna-logo-dark.png" media="(prefers-color-scheme: dark)"><img src="img/juturna-logo.png" alt="Juturna" width="45" height="40"></picture> demos</a>
+  <a class="back" href="../index.html">← All demos</a>
+</div></header>
+<main class="wrap">
+  <h1>Microphone</h1>
+
+  <div class="actions">
+    <button id="start" class="btn primary">Start</button>
+    <button id="image" class="btn" disabled>Send test image</button>
+    <button id="stop" class="btn" disabled>Stop</button>
+  </div>
+
+  <table>
+    <tr><th>audio chunks</th><td id="count">0</td><th>rms</th><td id="rms">-</td></tr>
+    <tr><th>out of order</th><td id="ooo">0</td><th>level</th><td><meter id="meter" min="0" max="0.5" value="0"></meter></td></tr>
+    <tr><th>image round trip</th><td id="imgres">-</td><th>image</th><td><canvas id="cv" width="64" height="48"></canvas></td></tr>
+  </table>
+  <pre id="log"></pre>
+</main>
 <script type="module">
 import { Juturna } from '../src/juturna.js';
 import { withTelemetry, showTelemetry } from './telemetry.js';
