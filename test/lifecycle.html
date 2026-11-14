@@ -5,7 +5,8 @@
 // What must hold around a lost Worker and the end of an instance: listeners
 // that throw, terminate() and destroy() while a restart waits, a page whose
 // timers run less often than the timeout, a create() that fails, a status()
-// asked while a Worker vanishes. Build with --test-plugins first.
+// asked while a Worker vanishes, a Worker that vanishes before the pipeline
+// runs. Build with --test-plugins first.
 import { Juturna } from '../src/juturna.js';
 
 window.__result = null;
@@ -17,12 +18,12 @@ const within = (promise, ms) => Promise.race([promise.then(() => true), sleep(ms
 const rejection = async (fn) => { try { await fn(); return null; } catch (e) { return e.message; } };
 
 // every Worker the library starts, to tell which ones it left running; the
-// next one fails at once when `failNextWorker` is set, and never gets the
-// command that builds its pipeline when `muteNextWorker` is (a Worker that
-// vanished while warming up its nodes: no answer, no error)
+// next one fails at once when `failNextWorker` is set, and the next one named
+// `mute.worker` never gets the command `mute.cmd` (a Worker that vanished
+// while it ran it: no answer, no error)
 const workers = [];
 let failNextWorker = false;
-let muteNextWorker = false;
+let mute = null;
 const NativeWorker = Worker;
 window.Worker = class extends NativeWorker {
   constructor(...args) {
@@ -31,10 +32,9 @@ window.Worker = class extends NativeWorker {
     workers.push(this);
     if (failNextWorker) setTimeout(() => this.dispatchEvent(new ErrorEvent('error', { message: 'boom' })));
     failNextWorker = false;
-    this.muted = muteNextWorker;
-    muteNextWorker = false;
+    if (mute && mute.worker === args[1]?.name) { this.muted = mute.cmd; mute = null; }
   }
-  postMessage(message, ...rest) { if (!(this.muted && message.cmd === 'pipeline')) super.postMessage(message, ...rest); }
+  postMessage(message, ...rest) { if (message.cmd !== this.muted) super.postMessage(message, ...rest); }
   terminate() { this.terminated = true; super.terminate(); }
 };
 const running = () => workers.filter((w) => !w.terminated).length;
@@ -106,7 +106,7 @@ try {
     // a restart that never ends is given up after restart.timeoutMs: the
     // Worker is lost, and stop() does not wait for it for ever
     const s = await crashed({ maxRestarts: 1, delayMs: 200, timeoutMs: 6000 }, (s) => s.pipe.onWorkerLost((e) => s.lost.push(e)));
-    muteNextWorker = true;
+    mute = { worker: 'heavy', cmd: 'pipeline' };
     check('endless_restart_is_given_up', await until(() => s.lost.length === 2, 15000) && /not rebuilt within 6000 ms/.test(s.lost[1].reason) && s.lost[1].willRestart === false, s.lost);
     const stopped = await within(s.pipe.stop(), 10000);
     check('stop_returns_after_an_endless_restart', stopped);
@@ -116,7 +116,7 @@ try {
       await s.pipe.destroy();
     }
     s.jt.terminate();
-    muteNextWorker = false;      // if no Worker took it, the next scenario must not
+    mute = null;                 // if no Worker took it, the next scenario must not
   }
   {
     // a status() asked while the Worker vanishes answers; terminate() cancels the restart
@@ -171,6 +171,41 @@ try {
     const error = await rejection(() => Juturna.create({ base: new URL('./missing/', location.href), workers: ['a', 'b'] }));
     check('failed_create_rejects', error !== null);
     check('failed_create_leaves_no_worker', running() === before, { before, now: running() });
+  }
+  {
+    // a Worker that vanishes while create() starts it: create() rejects after
+    // buildTimeoutMs and leaves no Worker behind
+    const before = running();
+    mute = { worker: 'b', cmd: 'init' };
+    const error = await rejection(() => within(Juturna.create({ workers: ['a', 'b'], supervise: { buildTimeoutMs: 8000 } }), 15000));
+    mute = null;
+    check('silent_create_rejects', /not started within 8000 ms/.test(error), error);
+    check('silent_create_leaves_no_worker', running() === before, { before, now: running() });
+  }
+  {
+    // the same while pipeline() builds the nodes: the instance is terminated
+    const before = running();
+    const jt = await Juturna.create({ supervise: { buildTimeoutMs: 8000 } });
+    mute = { worker: 'heavy', cmd: 'pipeline' };
+    const error = await rejection(() => within(jt.pipeline(crashing), 15000));
+    mute = null;
+    check('silent_pipeline_rejects', /not built within 8000 ms/.test(error), error);
+    check('silent_pipeline_leaves_no_worker', running() === before, { before, now: running() });
+    check('terminated_instance_builds_no_pipeline', /terminated/.test(await rejection(() => jt.pipeline(plain))));
+    jt.terminate();
+  }
+  {
+    // and while start() starts them: the Worker is lost, start() returns
+    const jt = await Juturna.create({ workers: ['main', 'heavy'], supervise: { buildTimeoutMs: 8000 } });
+    const pipe = await jt.pipeline(crashing);
+    const lost = [];
+    pipe.onWorkerLost((e) => lost.push(e));
+    workers.at(-1).muted = 'start';      // `heavy`, the last one started
+    const started = await within(pipe.start(), 15000);
+    check('silent_start_returns', started);
+    check('silent_start_loses_the_worker', lost.length === 1 && lost[0].worker === 'heavy' && /not started within 8000 ms/.test(lost[0].reason), lost);
+    if (started) { await pipe.stop(); await pipe.destroy(); }
+    jt.terminate();
   }
   window.__result = { checks };
 } catch (e) { window.__result = { fatal: String(e && e.stack || e), checks }; }

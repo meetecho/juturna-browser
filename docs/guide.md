@@ -135,6 +135,13 @@ destroy it and build a new one.
 A Worker that is busy, not lost, for longer than `timeoutMs` counts as lost:
 raise it for a node that legitimately takes longer.
 
+Pings start with `pipe.start()`. Before that, while `Juturna.create()`,
+`jt.pipeline()` and `pipe.start()` wait for the Workers, each of them has
+`buildTimeoutMs` (5 minutes): long enough for the first `pipeline()` to fetch
+the models of its nodes. A `create()` or `pipeline()` that runs out of time
+rejects and terminates the instance; a `start()` loses the Workers that did not
+answer.
+
 ### Restarting
 
 ```js
