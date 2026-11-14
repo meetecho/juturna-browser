@@ -73,6 +73,31 @@ try {
     window.fetch = nativeFetch;
   }
 
+  // a server that ignores the conditional request (a CDN behind a redirect):
+  // a 200 with the copy's strong ETag is answered with the copy, unread
+  const answer = (etag, body) => {
+    const state = { pulls: 0, cancelled: false };
+    const stream = new ReadableStream({
+      pull(c) { state.pulls++; c.enqueue(new TextEncoder().encode(body)); c.close(); },
+      cancel() { state.cancelled = true; }
+    }, { highWaterMark: 0 });
+    return [state, async () => new Response(stream, { headers: { etag } })];
+  };
+  for (const [name, etag, kept] of [['same_etag_200_uses_the_copy', '"abc"', true],
+    ['other_etag_200_replaces_the_copy', '"xyz"', false], ['weak_etag_200_replaces_the_copy', 'W/"abc"', false]]) {
+    const u = fresh();
+    await plant(u, 'etag copy', { etag: etag.startsWith('W/') ? etag : '"abc"' });
+    const [state, stub] = answer(etag, 'new body');
+    window.fetch = stub;
+    try {
+      const text = await (await cachedFetch(u)).text();
+      check(name, kept ? text === 'etag copy' && state.pulls === 0 && state.cancelled
+        : text === 'new body' && (await stored(u)) === 'new body', { text, ...state });
+    } finally {
+      window.fetch = nativeFetch;
+    }
+  }
+
   // a missing file is returned as it is, and not kept
   const missing = new URL('./missing-model.bin', location.href).href;
   const status = (await cachedFetch(missing)).status;

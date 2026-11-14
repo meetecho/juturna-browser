@@ -212,7 +212,8 @@ would be downloaded at every visit.
 
 The example nodes keep their models and their `.wasm` runtimes in the
 browser's Cache Storage (`juturna-models`): at the next visit each of those
-files costs a request answered `304`, not a download, and a file that changed
+files costs a request answered `304` (or a `200` with the same strong `ETag`, whose
+body is not read), not a download, and a file that changed
 on the server is downloaded again. `WhisperASR` and `TranslateOpus` route the
 requests of transformers.js there too. The small JavaScript modules the nodes
 load with `import()` are left to the browser's HTTP cache.

@@ -82,6 +82,14 @@ async function keep(key, onBytes) {
     return fromCache;
   }
   if (copy && response.status >= 500) return fromCache;
+  // the same file from a server that ignores the condition (the CDN Hugging
+  // Face redirects large files to): a weak ETag does not promise the same bytes
+  const etag = response.headers.get('etag');
+  if (copy && response.status === 200 && etag && !etag.startsWith('W/') && etag === copy.headers.get('etag')) {
+    await response.body?.cancel();
+    checked.add(key);
+    return fromCache;
+  }
   if (!response.ok || !cache) return once(key, response);
 
   try {
