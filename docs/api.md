@@ -229,7 +229,9 @@ For the JavaScript a node runs: fetches `url` like `fetch()`, and keeps the
 file in the browser's Cache Storage (`juturna-models`) for the next visit. When
 a copy is there, it asks the server whether the file changed (a conditional
 request on its `Last-Modified` or `ETag`): an answer of `304` returns the copy,
-a new file replaces it, and a network error or a server error (`5xx`) returns
+and so does a `200` with the same strong `ETag`, whose body is dropped unread
+(the CDN Hugging Face sends large files from ignores the condition). A new file
+replaces the copy, and a network error or a server error (`5xx`) returns
 the copy. A server that sends neither header gets the file downloaded at
 every visit.
 
