@@ -67,6 +67,13 @@ python3 build/vendor.py a/assets.toml b/assets.toml      # some manifests
 python3 build/vendor.py pipeline.json --plugins my-nodes # the nodes a pipeline configuration uses
 ```
 
+A node fetches these files at run time with `self.juturnaFetch` (see the
+[API](api.md#in-a-worker-selfjuturnafetchurl-promiseresponse)), and hands to
+its runtime the ones the runtime would fetch on its own. `WhisperASR` and
+`TranslateOpus` do it through `env.fetch` of transformers.js 4.3.0, which
+carries the model files and the `.wasm`: check that it still does when
+transformers.js is updated.
+
 For a pipeline configuration, each `extensions.nodes.<Class>` node is looked up in
 the folders given with `--plugins`, by the class its `_<name>/<name>.py` defines;
 its `assets.toml`, if it has one, is used. The same file declared by several nodes
@@ -123,7 +130,7 @@ driving the browser.
 | `test/supervisor.html` | `--test-plugins` | loss of a Worker: detection, closed queues, `stop()`; and the control without closing |
 | `test/restart.html` | `--test-plugins` | a Worker lost and rebuilt: messages fed afterwards reach `out`; the second loss, with no restart left, is final |
 | `test/lifecycle.html` | `--test-plugins` | listeners that throw during a loss and a restart, a warm-up longer than the timeout during a restart, a restart that never ends, a Worker that never answers `create()`, `pipeline()` or `start()`, `terminate()` and `destroy()` while a restart waits, timers slower than the timeout, a `create()` that fails, `status()` during a loss |
-| `test/model-cache.html` | none | the cache behind `juturnaFetch`: a copy kept, used after a `304`, replaced when the file changed, used offline, and a failing cache falling back to the network |
+| `test/model-cache.html` | none | the cache behind `juturnaFetch` and `prefetch()`: a copy kept, used after a `304`, replaced when the file changed, used offline, a failing cache falling back to the network, one download for concurrent requests, progress, and the file that failed named |
 | `test/ring-repair.html` | `--test-plugins` | a queue slot claimed and never filled stops the reader; `repairRing` frees it |
 | `test/denoise.html` | `--plugins examples/noise-suppression/plugins`, and `build/vendor.py examples/noise-suppression/plugins` | `denoise_dfn`: chunks of any size, no sample lost, noise attenuated, faster than real time, a wrong rate refused |
 | `test/live-translation.html` | `--plugins examples/live-translation/plugins --plugins examples/plugins`, and `build/vendor.py examples/live-translation/plugins examples/plugins` | `whisper_asr` and `translate_opus` across three Workers with silence and noise: nothing breaks on quiet audio, a wrong sampling rate is refused and the node keeps working |

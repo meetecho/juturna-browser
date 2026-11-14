@@ -5,8 +5,10 @@
 // The cache the nodes fetch their files through (self.juturnaFetch in a
 // Worker): a copy is kept, checked with a conditional request, replaced when
 // the file changed, used when offline, and a failing cache falls back to the
-// network. Needs no bundle: it imports the module directly.
+// network; two requests for one file make one download; prefetch() stores a
+// list of files with progress. Needs no bundle: it imports the modules directly.
 import { cachedFetch } from '../src/model-cache.js';
+import { prefetch } from '../src/juturna.js';
 
 window.__result = null;
 const checks = {};
@@ -16,36 +18,44 @@ const file = new URL('../src/ring.js', location.href).href;
 // a copy of `file` with another body and the given validators
 const plant = async (url, body, headers) => (await caches.open(CACHE)).put(url, new Response(body, { headers }));
 const stored = async (url) => (await (await caches.open(CACHE)).match(url))?.text();
-// the copy is written while the caller reads the file: wait for it
-const kept = async (url, body) => {
-  for (let i = 0; i < 50; i++) {
-    if ((await stored(url)) === body) return true;
-    await new Promise((r) => setTimeout(r, 100));
-  }
-  return false;
-};
 
 try {
   await caches.delete(CACHE);
   const original = await (await fetch(file, { cache: 'no-store' })).text();
+  // a URL of its own for each case: a file checked once is not checked again
+  // in the same page (the server ignores the query)
+  let cases = 0;
+  const fresh = () => `${file}?case=${++cases}`;
+  const counting = async (url, fn) => {
+    const native = window.fetch;
+    let requests = 0;
+    window.fetch = (u, init) => { if (String(u) === url) requests++; return native(u, init); };
+    try { return [await fn(), requests]; } finally { window.fetch = native; }
+  };
 
-  const first = await cachedFetch(file);
+  const a = fresh();
+  const first = await cachedFetch(a);
   check('first_fetch_downloads', first.status === 200 && (await first.text()) === original, first.status);
-  check('first_fetch_is_kept', await kept(file, original));
+  check('first_fetch_is_kept', (await stored(a)) === original);
+  const [againText, requests] = await counting(a, async () => (await cachedFetch(a)).text());
+  check('checked_file_is_not_asked_again', againText === original && requests === 0, requests);
 
   // same validators as the server: the 304 is answered with the copy
   const lastModified = (await fetch(file, { method: 'HEAD', cache: 'no-store' })).headers.get('last-modified');
-  await plant(file, 'the copy', { 'last-modified': lastModified });
-  check('unchanged_file_comes_from_the_copy', (await (await cachedFetch(file)).text()) === 'the copy', lastModified);
+  const b = fresh();
+  await plant(b, 'the copy', { 'last-modified': lastModified });
+  check('unchanged_file_comes_from_the_copy', (await (await cachedFetch(b)).text()) === 'the copy', lastModified);
 
   // older validators: the file changed on the server, and replaces the copy
-  await plant(file, 'stale', { 'last-modified': 'Thu, 01 Jan 2004 00:00:00 GMT' });
-  check('changed_file_is_downloaded', (await (await cachedFetch(file)).text()) === original);
-  check('changed_file_replaces_the_copy', await kept(file, original));
+  const c = fresh();
+  await plant(c, 'stale', { 'last-modified': 'Thu, 01 Jan 2004 00:00:00 GMT' });
+  check('changed_file_is_downloaded', (await (await cachedFetch(c)).text()) === original);
+  check('changed_file_replaces_the_copy', (await stored(c)) === original);
 
   // a copy with no validators is never trusted
-  await plant(file, 'unchecked', {});
-  check('copy_without_validators_is_downloaded', (await (await cachedFetch(file)).text()) === original);
+  const d = fresh();
+  await plant(d, 'unchecked', {});
+  check('copy_without_validators_is_downloaded', (await (await cachedFetch(d)).text()) === original);
 
   // the network fails: the copy is used
   const unreachable = 'http://127.0.0.1:1/model.bin';
@@ -68,14 +78,66 @@ try {
   const status = (await cachedFetch(missing)).status;
   check('missing_file_is_not_kept', status === 404 && (await stored(missing)) === undefined, status);
 
+  // out of quota: the file still arrives, and nothing is kept
+  const put = Cache.prototype.put;
+  Cache.prototype.put = async function (request, response) {
+    await response.body?.cancel();
+    throw new DOMException('full', 'QuotaExceededError');
+  };
+  try {
+    const q = fresh();
+    const text = await (await cachedFetch(q)).text();
+    check('full_cache_still_gives_the_file', text === original && (await stored(q)) === undefined, text.length);
+  } finally {
+    Cache.prototype.put = put;
+  }
+
   // the cache failing does not stop the file
   const open = caches.open;
   caches.open = () => Promise.reject(new Error('no cache'));
   try {
-    check('broken_cache_falls_back_to_the_network', (await (await cachedFetch(file)).text()) === original);
+    check('broken_cache_falls_back_to_the_network', (await (await cachedFetch(fresh())).text()) === original);
   } finally {
     caches.open = open;
   }
+
+  // two requests for one file at once: one download, both get the file
+  await caches.delete(CACHE);
+  const e = fresh();
+  const [texts, downloads] = await counting(e, async () =>
+    Promise.all((await Promise.all([cachedFetch(e), cachedFetch(e)])).map((r) => r.text())));
+  check('concurrent_requests_share_one_download', downloads === 1 && texts.every((t) => t === original),
+    { downloads, sizes: texts.map((t) => t.length) });
+
+  // prefetch(): every file stored, progress up to the size of each
+  await caches.delete(CACHE);
+  const files = ['../src/ring.js', '../src/bootstrap.js'].map((f) => new URL(f, location.href).href);
+  const progress = {};
+  await prefetch(files, { onProgress: ({ url, loaded, total }) => { progress[url] = { loaded, total }; } });
+  const bytes = async (response) => (await response?.arrayBuffer())?.byteLength;
+  const sizes = await Promise.all(files.map(async (f) => bytes(await fetch(f, { cache: 'no-store' }))));
+  const cache = await caches.open(CACHE);
+  const keptSizes = await Promise.all(files.map(async (f) => bytes(await cache.match(f))));
+  check('prefetch_stores_every_file', keptSizes.every((n, i) => n === sizes[i]), { keptSizes, sizes });
+  check('prefetch_reports_progress_to_the_end',
+    files.every((f, i) => progress[f]?.loaded === sizes[i] && progress[f]?.total === sizes[i]), progress);
+
+  // a file already kept and unchanged: reported complete at once
+  const again = {};
+  await prefetch([files[0]], { onProgress: ({ url, loaded, total }) => { again[url] = { loaded, total }; } });
+  check('prefetch_of_a_kept_file_is_complete', again[files[0]]?.loaded === sizes[0], again);
+
+  // a missing file: rejected with its URL, the others still kept
+  await caches.delete(CACHE);
+  const failed = await prefetch([files[0], missing]).then(() => null, (e) => e.message);
+  check('prefetch_names_the_missing_file', failed?.includes(missing), failed);
+  // the rejection may come before the other file is stored: give it a moment
+  let other;
+  for (let i = 0; i < 50 && other !== original; i++) {
+    other = await stored(files[0]);
+    if (other !== original) await new Promise((r) => setTimeout(r, 100));
+  }
+  check('prefetch_keeps_the_others', other === original);
 
   await caches.delete(CACHE);
   window.__result = { checks };

@@ -39,6 +39,9 @@ Not shipped: onnxruntime-web 1.22.0 (MIT) and the DeepFilterNet3 model
 with URLs and checksums; `python3 build/vendor.py <plugins folder>` fetches them
 into `vendor/`.
 
+The node keeps `model_url` and `<wasm_path>ort-wasm-simd-threaded.wasm` in the
+browser between visits: the list to pass to `prefetch()`.
+
 ## Input message
 
 `Message[AudioPayload]`, mono, 48 kHz.

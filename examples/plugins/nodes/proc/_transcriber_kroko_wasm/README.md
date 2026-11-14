@@ -63,6 +63,10 @@ verified by grepping the compiled `sherpa-onnx-wasm-main-asr.js` for
   holding the Kroko encoder/decoder/joiner/tokens, baked in at build
   time - see "Building the WASM runtime") must sit next to it.
 
+The node fetches these four files itself (`asr_helper_url`, `wasm_main_url`,
+and `sherpa-onnx-wasm-main-asr.wasm` and `.data` next to the latter) and keeps
+them in the browser between visits: the list to pass to `prefetch()`.
+
 ## Building the WASM runtime
 
 Unlike this project's other JS/WASM dependencies (onnxruntime-web,

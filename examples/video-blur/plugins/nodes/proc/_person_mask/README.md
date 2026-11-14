@@ -21,9 +21,10 @@ so it works only with the browser transport.
 
 The node loads two things at run time and does not ship them:
 
-- **onnxruntime-web** 1.22.0 (MIT): `ort.wasm.min.mjs` and the two files it loads
-  by itself, `ort-wasm-simd-threaded.mjs` and `ort-wasm-simd-threaded.wasm`. They
-  go in the folder `wasm_path` points to, next to `ort_url`.
+- **onnxruntime-web** 1.22.0 (MIT): `ort.wasm.min.mjs`, `ort-wasm-simd-threaded.mjs`
+  (which it loads by itself) and `ort-wasm-simd-threaded.wasm` (which the node
+  fetches and hands over). They go in the folder `wasm_path` points to, next to
+  `ort_url`.
 - **A segmentation model** with the interface above. The one in `assets.toml` is
   [MediaPipe Selfie Segmentation converted to ONNX](https://huggingface.co/onnx-community/mediapipe_selfie_segmentation-web)
   (Apache-2.0), at a fixed commit. A model that needs another input, or a heavier
@@ -34,6 +35,9 @@ The node loads two things at run time and does not ship them:
 `vendor/`. Serve them from wherever the page can load them: with
 `Cross-Origin-Embedder-Policy: require-corp` a host must allow it, which is why
 the examples serve them locally.
+
+The node keeps `model_url` and `<wasm_path>ort-wasm-simd-threaded.wasm` in the
+browser between visits: the list to pass to `prefetch()`.
 
 ## Input message
 

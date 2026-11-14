@@ -39,6 +39,17 @@ _LOAD = """
   // a revision means a Hugging Face layout, none the vendor/ one
   env.remotePathTemplate = revision ? '{model}/resolve/{revision}/' : '{model}/';
   env.backends.onnx.wasm.wasmPaths = { mjs: wasmMjsUrl, wasm: wasmBinUrl };
+  // juturna-browser's cache, checked at every visit, instead of the one of
+  // transformers.js: in 4.3.0 env.fetch carries the model files and the
+  // runtime. Anything but a plain GET (its probe of a file's size is a
+  // Range request) goes as it is.
+  if (self.juturnaFetch) {
+    const plain = (init) => (init?.method ?? 'GET') === 'GET'
+      && !new Headers(init?.headers).has('Range');
+    env.useBrowserCache = false;
+    env.fetch = (url, init) =>
+      plain(init) ? self.juturnaFetch(url) : fetch(url, init);
+  }
   const cores = navigator.hardwareConcurrency || 4;
   env.backends.onnx.wasm.numThreads =
     maxThreads ?? Math.min(4, Math.ceil(cores / 2));

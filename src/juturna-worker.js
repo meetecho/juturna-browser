@@ -4,8 +4,9 @@
 import { bootstrapJuturna, fetchAssets } from './bootstrap.js';
 import { cachedFetch } from './model-cache.js';
 
-// for the nodes: their models and runtimes, kept between visits
-self.juturnaFetch = cachedFetch;
+// for the nodes: their models and runtimes, kept between visits. One argument:
+// the init a node may pass, as to fetch(), must not become onBytes
+self.juturnaFetch = (url) => cachedFetch(url);
 
 let pyodide = null;
 let py = null;                       // the Python functions below
