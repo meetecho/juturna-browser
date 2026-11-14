@@ -65,3 +65,8 @@ WebAssembly builds of native libraries are the way to run models.
 | [Demos](docs/demos.md) | Try the six demo pages, see what each one measures, and find the licenses of the models |
 | [API reference](docs/api.md) | Look up a function, a configuration key, a message format or where an error shows |
 | [Development](docs/development.md) | Build the bundle, fetch third-party files, run the test pages |
+
+## License
+
+MIT, see [LICENSE](LICENSE). The models used by the demos have their own
+licenses, listed in [Demos](docs/demos.md#models-and-licenses).
