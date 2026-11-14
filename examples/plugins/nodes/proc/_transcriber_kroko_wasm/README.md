@@ -33,10 +33,11 @@ There is no VAD and no language selection: the loaded model is English
 only, and endpointing (deciding an utterance is over) is the model's own
 `enableEndpoint`/`rule*MinTrailingSilence` logic, not a separate node.
 
-`stop()` flushes whatever the model's internal state still holds for the
-utterance in progress (`OnlineStream.inputFinished()`, then decoded to
-completion) and transmits it with `meta['final'] = True` before the
-underlying stream is torn down - otherwise, audio spoken right before the
+`stop()` first lets the node consume the audio still in its queue, then
+flushes whatever the model's internal state still holds for the utterance
+in progress (a second of silence, which the model needs to emit the last
+words, then `OnlineStream.inputFinished()`, decoded to completion) and
+transmits it with `meta['final'] = True` - otherwise, audio spoken right before the
 pipeline is stopped (anything since the last endpoint) would be silently
 lost: the model's own endpoint detector needs trailing silence to fire,
 which a user hitting Stop mid-sentence never provides. This flush message
