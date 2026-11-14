@@ -57,14 +57,15 @@ without `background_blur`: only `person_mask` runs, and the page's own canvas
 does the compositing (`filter: blur()` for the background, `drawImage`
 respecting the per-pixel alpha of the mask for the soft edge).
 
-Measured on a 12-core desktop:
+Measured on a 12-core desktop, Chrome 157, at commit `db0897a` (2026-11-14). The synthetic rows are the median of three runs; the webcam rows are one session, medians of the last 60 frames:
 
 | Run | Frames | Median delay | Steps |
 |---|---|---|---|
-| `test/video-blur.html?fps=24&inflight=3`, synthetic 640×480 frames | 24.6 fps | 64 ms | 20 ms segmentation, 22 ms blur |
-| Same, at 30 fps | 29.2 fps, 6% of the frames dropped | | |
-| Webcam at 24 fps | 24 fps | 72 ms | 21 ms segmentation, 26 ms blur |
-| `test/video-blur-canvas.html?fps=24&inflight=3`, synthetic frames | 0 dropped (2 with `video-blur.html`) | 40 ms (60 ms with `video-blur.html`) | 8.8 ms of canvas compositing instead of 22 ms of numpy blur |
+| `test/video-blur.html?fps=24&inflight=3`, synthetic 640×480 frames | 24.7 fps, 2 of 73 frames dropped | 51 ms | 17 ms segmentation, 21 ms blur |
+| Same, at 30 fps | 30 fps, 4 of 71 frames dropped | 54 ms | 19 ms segmentation, 23 ms blur |
+| Webcam at 24 fps | 24.1 fps, 8 of 2186 frames dropped | 70 ms | 24 ms segmentation, 26 ms blur |
+| `test/video-blur-canvas.html?fps=24&inflight=3`, synthetic frames | 0 dropped (2 with `video-blur.html`) | 33 ms (51 ms with `video-blur.html`) | 8 ms of canvas compositing instead of 21 ms of numpy blur |
+| `canvas.html`, webcam at 24 fps | 23.8 fps, 0 frames dropped | 26 ms | 16 ms segmentation, 2.9 ms of canvas compositing |
 
 Compositing on the canvas saves a Worker and loses nothing: the segmentation
 is the same.
@@ -98,9 +99,10 @@ Worker: `whisper_asr` (Whisper, speech to English text) and `translate_opus`
   default, `?debounce=`); Enter commits it to the history and starts a new
   line.
 
-A model's Worker takes about 2.5 s on the first load. A 4 s window of
-transcription and translation together takes about 3 s, on the JFK sample also
-used by `test/live-translation-demo-jfk.html`.
+Loading the two models takes about 2.5 s. On the JFK sample (11 s, fed in real
+time in 1 s chunks), a 4 s window takes 1.8 s to transcribe and 0.4 s to
+translate: its translation arrives 2.2 s after the chunk that closed the
+window.
 
 ## Live transcription and translation with Kroko
 
@@ -113,6 +115,10 @@ used by `test/live-translation-demo-jfk.html`.
 - <http://localhost:8765/examples/live-translation-kroko/index.html>: the same
   transcription followed by `translate_opus`, which translates only the final
   lines.
+
+On the JFK sample, fed in real time in 100 ms chunks, each chunk takes under
+1 ms to transcribe, and a final line arrives about 140 ms after the chunk that
+ends the utterance. Loading the model takes about 3 s.
 
 The WebAssembly build is single-threaded, so the transcription page has no
 thread setting; on the translation page `?maxThreads=` applies to
