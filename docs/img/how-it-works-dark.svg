@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 300" width="700" height="300" role="img" aria-label="The page and three Workers. The page calls feed(), which reaches BrowserInput in Worker main; BrowserInput sends to person_mask in Worker ml, which sends to background_blur in Worker cpu, which sends back to BrowserOutput in Worker main, through rings in shared memory; BrowserOutput delivers to the page through on(message)."><style>svg{background:#0c1e2a}.bx{fill:#0f2433;stroke:#5f7a8d;stroke-width:1.5}.bx.core{stroke:#6cb6f0;stroke-width:3;fill:#173449}.bx.grp{fill:none;stroke:#5f7a8d;stroke-dasharray:2 4}.t{fill:#e4edf3;font:600 15px system-ui,-apple-system,Segoe UI,Roboto,Helvetica Neue,Arial,sans-serif}.t.m{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:14px}.t.s{fill:#a9bccb;font-weight:400;font-size:13px}.t.lab{fill:#a9bccb;font-weight:700;font-size:12px;letter-spacing:.08em}.t.acc{fill:#6cb6f0}.ln{stroke:#5f7a8d;stroke-width:1.8;fill:none}.ln.acc{stroke:#6cb6f0;stroke-width:3}.ah{fill:#5f7a8d}.ah.acc{fill:#6cb6f0}</style><defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0 0 L10 5 L0 10 z"/></marker><marker id="aha" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path class="ah acc" d="M0 0 L10 5 L0 10 z"/></marker></defs><rect class="bx grp" x="4" y="20" width="136" height="270" rx="14"/><text class="t lab" x="20" y="44">PAGE</text>
+<rect class="bx grp" x="156" y="20" width="164" height="270" rx="14"/><text class="t lab" x="172" y="44">WORKER MAIN</text>
+<rect class="bx grp" x="340" y="20" width="164" height="270" rx="14"/><text class="t lab" x="356" y="44">WORKER ML</text>
+<rect class="bx grp" x="524" y="20" width="172" height="270" rx="14"/><text class="t lab" x="540" y="44">WORKER CPU</text>
+<rect class="bx" x="12" y="70" width="120" height="56" rx="12"/>
+<text class="t m" x="72.0" y="103.0" text-anchor="middle">feed()</text>
+<rect class="bx" x="165" y="70" width="146" height="56" rx="12"/>
+<text class="t m" x="238.0" y="103.0" text-anchor="middle">BrowserInput</text>
+<rect class="bx" x="349" y="70" width="146" height="56" rx="12"/>
+<text class="t m" x="422.0" y="103.0" text-anchor="middle">person_mask</text>
+<rect class="bx" x="534" y="70" width="152" height="56" rx="12"/>
+<text class="t m" x="610.0" y="103.0" text-anchor="middle">background_blur</text>
+<rect class="bx" x="12" y="200" width="120" height="56" rx="12"/>
+<text class="t m" x="72.0" y="233.0" text-anchor="middle">on('message')</text>
+<rect class="bx" x="165" y="200" width="146" height="56" rx="12"/>
+<text class="t m" x="238.0" y="233.0" text-anchor="middle">BrowserOutput</text>
+<path class="ln" d="M132 98 H 161" marker-end="url(#ah)"/>
+<path class="ln acc" d="M311 98 H 345" marker-end="url(#aha)"/>
+<path class="ln acc" d="M495 98 H 530" marker-end="url(#aha)"/>
+<path class="ln acc" d="M610 126 V 228 H 315" marker-end="url(#aha)"/>
+<path class="ln" d="M165 228 H 136" marker-end="url(#ah)"/>
+<text class="t s acc" x="422" y="172" text-anchor="middle">rings in shared memory</text>
+<text class="t s" x="72" y="166" text-anchor="middle">postMessage</text></svg>
