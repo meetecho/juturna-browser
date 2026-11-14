@@ -7,5 +7,6 @@ model_id = "Xenova/whisper-base"
 language = "english"
 window_seconds = 4.0
 overlap_seconds = 0.5
+revision = ""
 
 [meta]

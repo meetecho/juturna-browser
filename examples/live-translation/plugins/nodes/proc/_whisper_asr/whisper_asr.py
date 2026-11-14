@@ -31,18 +31,20 @@ from juturna.payloads import ObjectPayload
 SAMPLING_RATE = 16000
 
 _LOAD = """
-(async (transformersUrl, wasmMjsUrl, wasmBinUrl, modelsUrl, modelId, maxThreads) => {
+(async (transformersUrl, wasmMjsUrl, wasmBinUrl, modelsUrl, modelId, revision, maxThreads) => {
   const { pipeline, env } = await import(transformersUrl);
   env.allowLocalModels = false;
   env.allowRemoteModels = true;
   env.remoteHost = modelsUrl;
-  env.remotePathTemplate = '{model}/';
+  // a revision means a Hugging Face layout, none the vendor/ one
+  env.remotePathTemplate = revision ? '{model}/resolve/{revision}/' : '{model}/';
   env.backends.onnx.wasm.wasmPaths = { mjs: wasmMjsUrl, wasm: wasmBinUrl };
   const cores = navigator.hardwareConcurrency || 4;
   env.backends.onnx.wasm.numThreads =
     maxThreads ?? Math.min(4, Math.ceil(cores / 2));
   return await pipeline('automatic-speech-recognition', modelId, {
     dtype: 'q8',
+    ...(revision && { revision }),
   });
 })
 """
@@ -68,6 +70,7 @@ class WhisperASR(Node[AudioPayload, ObjectPayload]):
         language: str = "english",
         window_seconds: float = 4.0,
         overlap_seconds: float = 0.5,
+        revision: str = "",
         max_threads: int | None = None,
         **kwargs,
     ):
@@ -99,6 +102,11 @@ class WhisperASR(Node[AudioPayload, ObjectPayload]):
         overlap_seconds : float
             How much of a window is carried into the next one, so that speech
             near the boundary is not cut. Must be less than ``window_seconds``.
+        revision : str
+            Commit of the model repository on Hugging Face, with ``models_url``
+            set to ``https://huggingface.co/``: the files are read from
+            ``<model_id>/resolve/<revision>/``. Empty (default) for a folder
+            laid out by ``build/vendor.py``.
         max_threads : int | None
             Cap on onnxruntime-web's WASM thread pool for this node's
             Worker. ``None`` uses the same ``min(4, ceil(cores / 2))`` a
@@ -124,6 +132,7 @@ class WhisperASR(Node[AudioPayload, ObjectPayload]):
         self._wasm_bin_url = wasm_bin_url
         self._models_url = models_url
         self._model_id = model_id
+        self._revision = revision
         self._language = language
         self._window = int(window_seconds * SAMPLING_RATE)
         self._overlap = int(overlap_seconds * SAMPLING_RATE)
@@ -150,6 +159,7 @@ class WhisperASR(Node[AudioPayload, ObjectPayload]):
                 self._wasm_bin_url,
                 self._models_url,
                 self._model_id,
+                self._revision,
                 self._max_threads,
             )
         )
