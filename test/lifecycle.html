@@ -15,11 +15,19 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const until = async (fn, ms) => { const t = performance.now(); while (performance.now() - t < ms) { if (fn()) return true; await sleep(100); } return fn(); };
 const rejection = async (fn) => { try { await fn(); return null; } catch (e) { return e.message; } };
 
-// every Worker the library starts, to tell which ones it left running
+// every Worker the library starts, to tell which ones it left running; the
+// next one fails at once when `failNextWorker` is set
 const workers = [];
+let failNextWorker = false;
 const NativeWorker = Worker;
 window.Worker = class extends NativeWorker {
-  constructor(...args) { super(...args); this.terminated = false; workers.push(this); }
+  constructor(...args) {
+    super(...args);
+    this.terminated = false;
+    workers.push(this);
+    if (failNextWorker) setTimeout(() => this.dispatchEvent(new ErrorEvent('error', { message: 'boom' })));
+    failNextWorker = false;
+  }
   terminate() { this.terminated = true; super.terminate(); }
 };
 const running = () => workers.filter((w) => !w.terminated).length;
@@ -36,9 +44,9 @@ const plain = { pipeline: { name: 'lp', id: 'lp-1', folder: '/tmp/juturna/lp', t
 const audio = (i) => ({ kind: 'audio', payload: { audio: new Float32Array(160), sampling_rate: 16000 }, meta: { i } });
 
 // a pipeline whose `heavy` Worker has just vanished
-async function crashed(restart, listeners = () => {}) {
+async function crashed(restart, listeners = () => {}, config = crashing) {
   const jt = await Juturna.create({ workers: ['main', 'heavy'], supervise: { pingMs: 200, timeoutMs: 1500, restart } });
-  const pipe = await jt.pipeline(crashing);
+  const pipe = await jt.pipeline(config);
   const s = { jt, pipe, got: [], lost: [], restarted: [], errors: [] };
   pipe.output('out').on('message', (m) => s.got.push(m.meta.i));
   pipe.onError((e) => s.errors.push(e.message));
@@ -61,6 +69,30 @@ try {
     const status = await s.pipe.status();
     check('throwing_restarted_listener_keeps_the_worker', /running/i.test(status.workers.heavy) && s.lost.length === 1, status.workers);
     check('listener_errors_reach_onError', ['lost boom', 'restarted boom'].every((m) => s.errors.includes(m)), s.errors);
+    await s.pipe.stop(); await s.pipe.destroy(); s.jt.terminate();
+  }
+  {
+    // a Worker whose nodes take longer than the timeout to warm up comes back
+    // all the same: it is not judged while it is being rebuilt
+    const slow = structuredClone(crashing);
+    slow.pipeline.nodes[1].configuration.warmup_ms = 2500;
+    const s = await crashed({ maxRestarts: 1, delayMs: 200 }, (s) => {
+      s.pipe.onWorkerLost((e) => s.lost.push(e));
+      s.pipe.onWorkerRestarted((e) => s.restarted.push(e));
+    }, slow);
+    check('slow_warmup_still_restarts', await until(() => s.restarted.length === 1 || s.lost.length === 2, 25000) && s.restarted.length === 1, s.lost);
+    await sleep(1000);
+    const status = await s.pipe.status();
+    check('slow_warmup_worker_runs_again', /running/i.test(status.workers.heavy) && s.lost.length === 1, status.workers);
+    await s.pipe.stop(); await s.pipe.destroy(); s.jt.terminate();
+  }
+  {
+    // a restart that fails with none left: the Worker is lost, not restarting
+    const s = await crashed({ maxRestarts: 1, delayMs: 200 }, (s) => s.pipe.onWorkerLost((e) => s.lost.push(e)));
+    failNextWorker = true;
+    check('failed_restart_is_a_final_loss', await until(() => s.lost.length === 2, 15000) && s.lost[1].willRestart === false, s.lost);
+    const status = await s.pipe.status();
+    check('failed_restart_leaves_the_worker_lost', status.workers.heavy === 'lost', status.workers);
     await s.pipe.stop(); await s.pipe.destroy(); s.jt.terminate();
   }
   {

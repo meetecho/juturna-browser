@@ -140,7 +140,9 @@ export class Juturna {
       const late = Math.max(0, now - lastTick - this.#supervise.pingMs);
       lastTick = now;
       for (const link of this.#links.values()) {
-        if (link.state !== 'ok' || !link.booted) continue;
+        // a Worker being rebuilt is judged once its nodes run again: until
+        // then it warms them up, and that may take longer than the timeout
+        if (link.state !== 'ok' || !link.booted || this.#restarting.has(link.name)) continue;
         link.lastPong = Math.min(now, link.lastPong + late);
         if (now - link.lastPong > this.#supervise.timeoutMs) this.#lost(link, `no answer for ${this.#supervise.timeoutMs} ms`);
         else link.ping();
@@ -175,7 +177,8 @@ export class Juturna {
     if (willRestart) {
       const restart = this.#restart(link.name, attempts + 1);
       this.#restarting.set(link.name, restart);
-      restart.finally(() => this.#restarting.delete(link.name));
+      // a restart that failed has already put the next one in its place
+      restart.finally(() => { if (this.#restarting.get(link.name) === restart) this.#restarting.delete(link.name); });
     }
   }
 
@@ -471,6 +474,7 @@ class Pipeline {
   _workerLost(worker, reason, willRestart = false) {
     this.#lost.set(worker, reason);
     if (willRestart) this.#restarting.add(worker);
+    else this.#restarting.delete(worker);   // lost for good after a restart that failed
     this._error(new Error(`Worker ${worker} was lost: ${reason}${willRestart ? ' (restarting)' : ''}`));
     // a listener that throws must not stop the recovery that follows
     for (const callback of this.#lostListeners) {
