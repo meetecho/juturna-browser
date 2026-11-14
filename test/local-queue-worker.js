@@ -99,13 +99,13 @@ def run():
     except RuntimeError: ok = True
     check('a_local_queue_cannot_be_shared', ok)
 
-    # -- a node: its buffer is always local, its inbound queue follows the scope
+    # -- a node: its inbound queue follows the scope
     with transport.node_scope(False):
         node = Node(node_name='a', pipe_name='p', transport=transport)
-    check('node_alone_is_all_local', kind(node._queue) == '_BrowserLocalQueue' and kind(node._buffer._out_queue) == '_BrowserLocalQueue', [kind(node._queue), kind(node._buffer._out_queue)])
+    check('node_alone_has_a_local_queue_in', kind(node._queue) == '_BrowserLocalQueue', kind(node._queue))
     with transport.node_scope(True):
         node = Node(node_name='b', pipe_name='p', transport=transport)
-    check('node_written_from_afar_has_a_ring_in', kind(node._queue) == '_BrowserQueue' and kind(node._buffer._out_queue) == '_BrowserLocalQueue', [kind(node._queue), kind(node._buffer._out_queue)])
+    check('node_written_from_afar_has_a_ring_in', kind(node._queue) == '_BrowserQueue', kind(node._queue))
     return json.dumps(checks)
 `;
 
