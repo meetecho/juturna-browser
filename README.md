@@ -48,7 +48,7 @@ WebAssembly builds of native libraries are the way to run models.
 
 ## Requirements
 
-- Chrome 137 or later (JSPI), tested on 151.
+- Chrome 137 or later (JSPI), tested on 157.
 - Pyodide 314 or later, loaded from the CDN by the Worker.
 - A page served with the `Cross-Origin-Opener-Policy: same-origin` and
   `Cross-Origin-Embedder-Policy: require-corp` headers, without which
@@ -62,7 +62,7 @@ WebAssembly builds of native libraries are the way to run models.
 |---|---|
 | [Guide](docs/guide.md) | Build and run a first pipeline, then feed audio and video, use several Workers, handle lost Workers, write a node |
 | [How it works](docs/how-it-works.md) | Understand the Workers, the shared-memory queues and what each step costs |
-| [Demos](docs/demos.md) | Try the six demo pages, see what each one measures, and find the licenses of the models |
+| [Demos](docs/demos.md) | Try the six demos, see what each one measures, and find the licenses of the models |
 | [API reference](docs/api.md) | Look up a function, a configuration key, a message format or where an error shows |
 | [Development](docs/development.md) | Build the bundle, fetch third-party files, run the test pages |
 
