@@ -109,7 +109,7 @@ class TranslateOpus(Node[ObjectPayload, ObjectPayload]):
             laid out by ``build/vendor.py``.
         max_threads : int | None
             Cap on onnxruntime-web's WASM thread pool for this node's
-            Worker. ``None`` uses the same ``min(4, ceil(cores / 2))`` a
+            Worker. ``None`` or 0 uses the same ``min(4, ceil(cores / 2))`` a
             plain onnxruntime-web default would pick. Worth lowering when
             this node shares a pipeline with ``whisper_asr``: each node
             picks its thread count independently, so two nodes running
@@ -129,7 +129,8 @@ class TranslateOpus(Node[ObjectPayload, ObjectPayload]):
         self._revision = revision
         self._source_lang = source_lang
         self._target_lang = target_lang
-        self._max_threads = max_threads
+        # config.toml cannot hold None: its default, 0, stands for it
+        self._max_threads = max_threads or None
 
         self._mt = None
         self._translate = None

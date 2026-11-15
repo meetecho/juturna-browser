@@ -32,6 +32,8 @@ translation call, independent of every other message.
 - `model_id`: model folder name under `models_url`, default
   `Xenova/opus-mt-en-it`
 - `source_lang`, `target_lang`: language codes of the pair, default `en`/`it`
+- `max_threads`: cap on the onnxruntime-web WASM threads of the node's
+  Worker; 0 (default) leaves it to onnxruntime-web, `min(4, ceil(cores / 2))`
 
 ## Third-party files
 

@@ -85,7 +85,7 @@ class PersonMask(Node[ImagePayload, ImagePayload]):
             Absolute URL of the segmentation model.
         max_threads : int | None
             Cap on onnxruntime-web's WASM thread pool for this node's
-            Worker. ``None`` uses the same ``min(4, ceil(cores / 2))``
+            Worker. ``None`` or 0 uses the same ``min(4, ceil(cores / 2))``
             onnxruntime-web would pick on its own.
         kwargs : dict
             Superclass arguments.
@@ -96,7 +96,8 @@ class PersonMask(Node[ImagePayload, ImagePayload]):
         self._ort_url = ort_url
         self._wasm_path = wasm_path
         self._model_url = model_url
-        self._max_threads = max_threads
+        # config.toml cannot hold None: its default, 0, stands for it
+        self._max_threads = max_threads or None
 
         self._runtime = None
         self._infer = None
