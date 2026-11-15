@@ -6,7 +6,8 @@
 src/         juturna.js (the API), juturna-worker.js (the Worker side),
              bootstrap.js (installs Juturna in Pyodide), ring.js (closes and repairs queues),
              model-cache.js (the files of the nodes kept between visits)
-build/       build.py (the bundle), vendor.py (the third-party files nodes declare)
+build/       build.py (the bundle), vendor.py (the third-party files nodes declare),
+             check_nodes.py (imports every node with CPython)
 examples/    microphone.html, video-blur/, noise-suppression/, live-translation/,
              live-translation-kroko/, live-transcription-kroko/, telemetry.js (the
              `?telemetry` panel), plugins/ (nodes shared by more than one example)
@@ -140,3 +141,15 @@ driving the browser.
 Serve the pages with `python3 serve.py 8765` (see the [guide](guide.md)). A background tab limits `setTimeout` to once a second: the tests that need
 regular timing take it from a Worker. `supervisor`, `restart` and `lifecycle`
 expect a loss to be noticed within seconds: keep their tab in the foreground.
+
+One check runs outside the browser: `build/check_nodes.py` imports every node
+of `examples/` and `test/plugins` with CPython, as `python -m juturna validate`
+does, and as a pytest of a node would. Run it with a Python that has juturna
+installed:
+
+```
+python build/check_nodes.py
+```
+
+It fails on a node that imports `js` or `pyodide` at the top of its module:
+import them inside the functions that use them.

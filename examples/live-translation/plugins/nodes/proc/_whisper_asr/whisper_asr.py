@@ -18,10 +18,6 @@ import time
 
 import numpy as np
 
-from pyodide.code import run_js
-from pyodide.ffi import run_sync
-from pyodide.ffi import to_js
-
 from juturna.components import Message
 from juturna.components import Node
 
@@ -163,6 +159,9 @@ class WhisperASR(Node[AudioPayload, ObjectPayload]):
         self._window_start = 0.0
 
     def warmup(self):  # noqa: D102
+        from pyodide.code import run_js
+        from pyodide.ffi import run_sync
+
         self._asr = run_sync(
             run_js(_LOAD)(
                 self._transformers_url,
@@ -179,6 +178,9 @@ class WhisperASR(Node[AudioPayload, ObjectPayload]):
         self.logger.info("whisper model loaded")
 
     def update(self, message: Message[AudioPayload], **kwargs):  # noqa: D102
+        from pyodide.ffi import run_sync
+        from pyodide.ffi import to_js
+
         payload = message.payload
 
         if payload.sampling_rate != SAMPLING_RATE or payload.channels > 1:

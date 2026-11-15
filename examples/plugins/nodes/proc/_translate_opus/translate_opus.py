@@ -14,9 +14,6 @@ between calls, unlike `denoise_dfn` or `whisper_asr`.
 
 import time
 
-from pyodide.code import run_js
-from pyodide.ffi import run_sync
-
 from juturna.components import Message
 from juturna.components import Node
 
@@ -138,6 +135,9 @@ class TranslateOpus(Node[ObjectPayload, ObjectPayload]):
         self._translate = None
 
     def warmup(self):  # noqa: D102
+        from pyodide.code import run_js
+        from pyodide.ffi import run_sync
+
         self._mt = run_sync(
             run_js(_LOAD)(
                 self._transformers_url,
@@ -154,6 +154,8 @@ class TranslateOpus(Node[ObjectPayload, ObjectPayload]):
         self.logger.info('translation model loaded')
 
     def update(self, message: Message[ObjectPayload], **kwargs):  # noqa: D102
+        from pyodide.ffi import run_sync
+
         # A streaming source (e.g. transcriber_kroko_wasm) marks a partial,
         # not yet final result with meta['final'] = False; translating it
         # would burn a translation call per chunk on text that is about to

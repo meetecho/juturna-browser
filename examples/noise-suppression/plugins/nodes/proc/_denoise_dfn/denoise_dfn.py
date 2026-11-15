@@ -15,10 +15,6 @@ import time
 
 import numpy as np
 
-from pyodide.code import run_js
-from pyodide.ffi import run_sync
-from pyodide.ffi import to_js
-
 from juturna.components import Message
 from juturna.components import Node
 
@@ -128,6 +124,9 @@ class DenoiseDFN(Node[AudioPayload, AudioPayload]):
         self._pending = np.zeros(0, dtype=np.float32)
 
     def warmup(self):  # noqa: D102
+        from pyodide.code import run_js
+        from pyodide.ffi import run_sync
+
         self._runtime = run_sync(
             run_js(_LOAD)(
                 self._ort_url,
@@ -143,6 +142,9 @@ class DenoiseDFN(Node[AudioPayload, AudioPayload]):
         self.logger.info('denoising model loaded')
 
     def update(self, message: Message[AudioPayload], **kwargs):  # noqa: D102
+        from pyodide.ffi import run_sync
+        from pyodide.ffi import to_js
+
         payload = message.payload
 
         if payload.sampling_rate != SAMPLING_RATE or payload.channels > 1:
