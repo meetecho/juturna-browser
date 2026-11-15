@@ -1,13 +1,33 @@
 /* Demo pages and landing, in the Meetecho reading scheme (light and dark). */
 
+/* Ubuntu and Ubuntu Mono, served with the pages so every browser gets the same fonts;
+   subset and renamed as the Ubuntu Font Licence requires (fonts/UBUNTU-FONT-LICENCE.txt) */
+@font-face {
+  font-family: "Ubuntu derivative Juturna"; src: url("fonts/Ubuntu.woff2") format("woff2");
+  font-weight: 100 800; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: "Ubuntu derivative Juturna"; src: url("fonts/Ubuntu-Italic.woff2") format("woff2");
+  font-weight: 100 800; font-style: italic; font-display: swap;
+}
+@font-face {
+  font-family: "Ubuntu Mono derivative Juturna"; src: url("fonts/UbuntuMono.woff2") format("woff2");
+  font-weight: 400 700; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: "Ubuntu Mono derivative Juturna"; src: url("fonts/UbuntuMono-Italic.woff2") format("woff2");
+  font-weight: 400 700; font-style: italic; font-display: swap;
+}
+
 :root {
   --bg: #ffffff; --soft: #f5f8fb; --surface: #ffffff; --ink: #0f1d26; --muted: #4b5d6b;
   --line: #e2e9ef; --line-strong: #7d8f9d;
   --accent: #52a8ec; --accent-strong: #1a6dad; --accent-soft: #eef6fd; --on-accent: #06141d;
   --hero: #0f2c3e; --hero-2: #0a1f2c; --on-dark: #c9d8e3; --on-dark-muted: #a9bccb;
   --code-bg: #0a1f2c; --code-ink: #e4edf3;
-  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-sans: "Ubuntu derivative Juturna", system-ui, -apple-system,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "Ubuntu Mono derivative Juturna", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --radius: 14px; --shadow: 0 1px 2px rgba(15,44,62,.06), 0 8px 24px rgba(15,44,62,.06);
 }
 @media (prefers-color-scheme: dark) {
