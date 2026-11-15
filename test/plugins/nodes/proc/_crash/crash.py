@@ -3,8 +3,6 @@ keeps the thread busy for `warmup_ms`, as a model being compiled does."""
 
 import time
 
-from js import close
-
 from juturna.components import Node
 
 
@@ -22,6 +20,8 @@ class Crash(Node):
             pass
 
     def update(self, message, **kwargs):
+        from js import close
+
         self._seen += 1
 
         if self._seen > self._after:

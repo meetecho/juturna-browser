@@ -13,10 +13,6 @@ import time
 
 import numpy as np
 
-from pyodide.code import run_js
-from pyodide.ffi import run_sync
-from pyodide.ffi import to_js
-
 from juturna.components import Message
 from juturna.components import Node
 
@@ -106,6 +102,9 @@ class PersonMask(Node[ImagePayload, ImagePayload]):
         self._infer = None
 
     def warmup(self):  # noqa: D102
+        from pyodide.code import run_js
+        from pyodide.ffi import run_sync
+
         self._runtime = run_sync(
             run_js(_LOAD)(
                 self._ort_url,
@@ -119,6 +118,9 @@ class PersonMask(Node[ImagePayload, ImagePayload]):
         self.logger.info('segmentation model loaded')
 
     def update(self, message: Message[ImagePayload], **kwargs):  # noqa: D102
+        from pyodide.ffi import run_sync
+        from pyodide.ffi import to_js
+
         started = time.perf_counter()
 
         frame = message.payload.image

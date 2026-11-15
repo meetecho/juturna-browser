@@ -16,10 +16,6 @@ import time
 
 import numpy as np
 
-from pyodide.code import run_js
-from pyodide.ffi import run_sync
-from pyodide.ffi import to_js
-
 from juturna.components import Message
 from juturna.components import Node
 
@@ -198,6 +194,9 @@ class TranscriberKrokoWasm(Node[AudioPayload, ObjectPayload]):
         self._last_end = -1.0
 
     def warmup(self):  # noqa: D102
+        from pyodide.code import run_js
+        from pyodide.ffi import run_sync
+
         self._bridge = run_sync(
             run_js(_LOAD)(self._asr_helper_url, self._wasm_main_url)
         )
@@ -207,6 +206,8 @@ class TranscriberKrokoWasm(Node[AudioPayload, ObjectPayload]):
         self.logger.info('kroko streaming asr model loaded')
 
     def update(self, message: Message[AudioPayload], **kwargs):  # noqa: D102
+        from pyodide.ffi import to_js
+
         payload = message.payload
 
         if payload.sampling_rate != SAMPLING_RATE or payload.channels > 1:

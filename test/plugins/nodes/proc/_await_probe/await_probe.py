@@ -25,10 +25,6 @@ import time
 
 import numpy as np
 
-from pyodide.code import run_js
-from pyodide.ffi import run_sync
-from pyodide.ffi import to_js
-
 from juturna.components import Message
 from juturna.components import Node
 
@@ -119,6 +115,10 @@ class AwaitProbe(Node[ObjectPayload, ObjectPayload]):
         self._rgb = None
 
     def warmup(self):  # noqa: D102
+        from pyodide.code import run_js
+        from pyodide.ffi import run_sync
+        from pyodide.ffi import to_js
+
         if self._mode == 'synthetic':
             self._call = run_js(_MANY_AWAITS)
             return
@@ -142,6 +142,8 @@ class AwaitProbe(Node[ObjectPayload, ObjectPayload]):
         self._call = run_js(_MANY_INFERENCES)
 
     def update(self, message: Message[ObjectPayload], **kwargs):  # noqa: D102
+        from pyodide.ffi import run_sync
+
         n = message.payload['n']
 
         started = time.perf_counter()
