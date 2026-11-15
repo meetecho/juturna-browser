@@ -60,7 +60,8 @@ WebAssembly builds of native libraries are the way to run models.
 
 | Page | Read it to |
 |---|---|
-| [Guide](docs/guide.md) | Build and run a first pipeline, then feed audio and video, use several Workers, handle lost Workers, write a node |
+| [Guide](docs/guide.md) | Build and run a first pipeline, then feed audio and video, use several Workers, handle lost Workers |
+| [Write a browser node](docs/write-a-node.md) | Write a node, build it into the bundle and run it in a page |
 | [How it works](docs/how-it-works.md) | Understand the Workers, the shared-memory queues and what each step costs |
 | [Demos](docs/demos.md) | Try the six demos, see what each one measures, and find the licenses of the models |
 | [API reference](docs/api.md) | Look up a function, a configuration key, a message format or where an error shows |

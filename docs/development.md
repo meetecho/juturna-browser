@@ -29,7 +29,8 @@ the checkout.
 
 Options: `--plugins DIR` (repeatable) adds the nodes under `DIR`: each is a folder
 `_<name>` with `<name>.py` and `config.toml`. They are used in a pipeline as
-`extensions.nodes.<Class>`, and `--test-plugins` adds the nodes of `test/plugins`.
+`extensions.nodes.<Class>` ([Write a browser node](write-a-node.md) walks
+through one), and `--test-plugins` adds the nodes of `test/plugins`.
 `JUTURNA_REPO` can replace `--juturna`, `JUTURNA_NODES_REPO` `--nodes`. The bundle of the demo is:
 
 ```
