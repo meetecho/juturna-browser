@@ -2,9 +2,10 @@
 
 This guide builds a first pipeline in a page, then covers the tasks that come
 next: feeding audio and video, spreading nodes over several Workers, handling
-a Worker that is lost, writing a node and watching the messages. How the
-pieces work underneath is in [How it works](how-it-works.md); every function
-is in the [API reference](api.md).
+a Worker that is lost and watching the messages. Writing a node has its own
+page, [Write a browser node](write-a-node.md). How the pieces work underneath
+is in [How it works](how-it-works.md); every function is in the
+[API reference](api.md).
 
 ## Your first pipeline
 
@@ -173,42 +174,9 @@ run out again.
 
 ## Write a node
 
-A node is a Juturna node. On a server you write it as described in the Juturna
-documentation; in the browser it runs in Pyodide, so numpy is available and
-most of what has native code is not. Put it in a plugin folder:
-
-```
-my-plugins/
-  _my_node/
-    my_node.py
-    config.toml
-```
-
-`my_node.py` holds a class that extends `Node` (the folder is `_` plus the
-module name), `config.toml` holds the default arguments under `[arguments]`.
-Build the folder into the bundle with `build/build.py --plugins my-plugins`,
-and use `type: 'extensions.nodes.MyNode'` (the class name) in the
-configuration. `examples/video-blur/plugins` has two complete nodes, with a
-README each.
-
-A node can call JavaScript. `person_mask` loads onnxruntime-web and runs a
-model that way: `run_js` evaluates a function, and `run_sync` waits for its
-promise. `run_sync` works inside `warmup()` and `update()`, which run in a
-context that may wait.
-
-A node runs its `update()` for one message at a time and keeps the Worker's
-thread while it does. Keep an eye on what it costs per message: at 24 fps it
-must stay well under 42 ms, including the time to receive and send the frame
-(about 1.5 ms per hop for 640×480 RGBA).
-
-A node that loads files it does not ship, such as a model, declares them in an
-`assets.toml`: see [Development](development.md#third-party-files-of-the-nodes).
-It fetches them with `self.juturnaFetch(url)`, which keeps them in the browser
-between visits (see [Models between visits](#models-between-visits)). A file
-the node hands to a runtime, such as the `.wasm` of onnxruntime-web or of an
-Emscripten build, is fetched the same way and passed over
-(`ort.env.wasm.wasmBinary`, `Module.instantiateWasm`): left to the runtime, it
-would be downloaded at every visit.
+A node is a Juturna node that runs in Pyodide, built into the bundle with
+`build/build.py --plugins`. [Write a browser node](write-a-node.md) walks
+through one, from the plugin folder to the page.
 
 ## Models between visits
 
