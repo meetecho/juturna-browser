@@ -55,7 +55,9 @@ the page feeds and what it receives. Between them go the nodes that do the
 work. `Juturna.create()` takes about 3 to 4 seconds: it loads Pyodide and
 installs Juturna in every Worker.
 
-<http://localhost:8765/examples/microphone.html> is the same pipeline fed by
+<a class="try-it" href="../examples/microphone.html">▶ Try it</a>
+
+`examples/microphone.html` is the same pipeline fed by
 the microphone, plus an image round trip. Accept the microphone permission.
 
 ## Feed audio from the microphone

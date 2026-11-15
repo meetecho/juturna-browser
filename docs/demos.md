@@ -1,5 +1,18 @@
 # Demos
 
+- [Microphone](#microphone): <a class="try-it" href="../examples/microphone.html">▶ Try it</a>
+- [Background blur](#background-blur): <a class="try-it" href="../examples/video-blur/index.html">▶ Try it</a>
+  <a class="try-it" href="../examples/video-blur/canvas.html">▶ Canvas version</a>
+- [Noise suppression](#noise-suppression): <a class="try-it" href="../examples/noise-suppression/index.html">▶ Try it</a>
+- [Live translation](#live-translation): <a class="try-it" href="../examples/live-translation/index.html">▶ Try it</a>
+  <a class="try-it" href="../examples/live-translation/text.html">▶ Text version</a>
+- [Live transcription with Kroko](#live-transcription-and-translation-with-kroko):
+  <a class="try-it" href="../examples/live-transcription-kroko/index.html">▶ Try it</a>
+- [Live translation with Kroko](#live-transcription-and-translation-with-kroko):
+  <a class="try-it" href="../examples/live-translation-kroko/index.html">▶ Try it</a>
+
+The pages need the local server described in [Run them locally](#run-them-locally).
+
 Six demos in `examples/`, eight pages, use the same API, and all but the
 microphone one run real models:
 `Juturna.create()`, `pipe.input().feed()`, `pipe.output().on('message')`.
@@ -35,9 +48,10 @@ measured numbers.
 
 ## Microphone
 
-<http://localhost:8765/examples/microphone.html>: the microphone goes through
-a pipeline of `BrowserInput` and `BrowserOutput`, plus an image round trip.
-The page shows the chunks received, their level and any that arrive out of
+<a class="try-it" href="../examples/microphone.html">▶ Try it</a>
+
+The microphone goes through a pipeline of `BrowserInput` and `BrowserOutput`,
+plus an image round trip. The page shows the chunks received, their level and any that arrive out of
 order. It is the smallest complete page to start from.
 
 ## Background blur
@@ -47,13 +61,14 @@ portrait segmentation model with onnxruntime-web and writes the mask in the
 alpha channel, `background_blur` blurs what the mask marks as background
 (numpy), and the result is drawn on a `<canvas>`.
 
-<http://localhost:8765/examples/video-blur/index.html> asks the camera for
-24 fps (`?fps=` changes it). The page keeps at most three frames in flight
+<a class="try-it" href="../examples/video-blur/index.html">▶ Try it</a>
+<a class="try-it" href="../examples/video-blur/canvas.html">▶ Canvas version</a>
+
+The main page asks the camera for 24 fps (`?fps=` changes it). The page keeps at most three frames in flight
 (`?inflight=`) and drops the others, so the delay does not build up when the
 pipeline is slower than the camera.
 
-<http://localhost:8765/examples/video-blur/canvas.html> is the same pipeline
-without `background_blur`: only `person_mask` runs, and the page's own canvas
+The canvas version is the same pipeline without `background_blur`: only `person_mask` runs, and the page's own canvas
 does the compositing (`filter: blur()` for the background, `drawImage`
 respecting the per-pixel alpha of the mask for the soft edge).
 
@@ -72,27 +87,29 @@ is the same.
 
 ## Noise suppression
 
-<http://localhost:8765/examples/noise-suppression/index.html>: the microphone
-goes through `denoise_dfn`, which removes the noise from speech with
-DeepFilterNet3 run by onnxruntime-web. `?synthetic=1` uses a voice-like tone
+<a class="try-it" href="../examples/noise-suppression/index.html">▶ Try it</a>
+
+The microphone goes through `denoise_dfn`, which removes the noise from speech
+with DeepFilterNet3 run by onnxruntime-web. `?synthetic=1` uses a voice-like tone
 with steady noise instead of the microphone; `?attenuation=12` lets some noise
 through. The attenuation is fixed when the node warms up, so the page builds a
 new pipeline to try another value on the audio it already recorded.
 
 ## Live translation
 
+<a class="try-it" href="../examples/live-translation/index.html">▶ Try it</a>
+<a class="try-it" href="../examples/live-translation/text.html">▶ Text version</a>
+
 English speech, or typed text, becomes a live transcript and a translation,
 through two nodes on transformers.js and onnxruntime-web, each in its own
 Worker: `whisper_asr` (Whisper, speech to English text) and `translate_opus`
 (OPUS-MT, English to Italian, Spanish, Chinese or German).
 
-- <http://localhost:8765/examples/live-translation/index.html>: the microphone,
-  then `whisper_asr`, then `translate_opus`. The target language
+- The main page: the microphone, then `whisper_asr`, then `translate_opus`. The target language
   (`?target=`), the transcription window (`?window=`) and the capture chunk are
   set before pressing Start; changing the target language needs Stop, since it
   picks a different model.
-- <http://localhost:8765/examples/live-translation/text.html>: a text box feeds
-  `translate_opus` alone, with an `object` message (`{kind: 'object', payload:
+- The text version: a text box feeds `translate_opus` alone, with an `object` message (`{kind: 'object', payload:
   {text}}`; `decode_message` builds an `ObjectPayload` from it), the same
   shape `translate_opus` reads from `whisper_asr`. The
   translation of the line being typed overwrites itself (500 ms debounce by
@@ -106,15 +123,16 @@ window.
 
 ## Live transcription and translation with Kroko
 
-- <http://localhost:8765/examples/live-transcription-kroko/index.html>: the
-  microphone goes through `transcriber_kroko_wasm`, Kroko's streaming
-  Zipformer for English run by sherpa-onnx compiled to WebAssembly. Unlike
+<a class="try-it" href="../examples/live-transcription-kroko/index.html">▶ Try transcription</a>
+<a class="try-it" href="../examples/live-translation-kroko/index.html">▶ Try translation</a>
+
+- Transcription: the microphone goes through `transcriber_kroko_wasm`, Kroko's
+  streaming Zipformer for English run by sherpa-onnx compiled to WebAssembly. Unlike
   `whisper_asr`, it transcribes as the audio arrives: each 100 ms chunk updates
   the current line, and the line is final when the model detects the end of
   the utterance.
-- <http://localhost:8765/examples/live-translation-kroko/index.html>: the same
-  transcription followed by `translate_opus`, which translates only the final
-  lines.
+- Translation: the same transcription followed by `translate_opus`, which
+  translates only the final lines.
 
 On the JFK sample, fed in real time in 100 ms chunks, each chunk takes under
 1 ms to transcribe, and a final line arrives about 140 ms after the chunk that
