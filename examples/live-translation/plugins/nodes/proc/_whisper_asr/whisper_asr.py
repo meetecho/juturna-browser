@@ -116,7 +116,7 @@ class WhisperASR(Node[AudioPayload, ObjectPayload]):
             laid out by ``build/vendor.py``.
         max_threads : int | None
             Cap on onnxruntime-web's WASM thread pool for this node's
-            Worker. ``None`` uses the same ``min(4, ceil(cores / 2))`` a
+            Worker. ``None`` or 0 uses the same ``min(4, ceil(cores / 2))`` a
             plain onnxruntime-web default would pick. Worth lowering when
             this node shares a pipeline with another WASM-threaded node
             (e.g. ``translate_opus``): each node picks its thread count
@@ -151,7 +151,8 @@ class WhisperASR(Node[AudioPayload, ObjectPayload]):
                 f"overlap_seconds ({overlap_seconds}) must be at least 0 and "
                 f"less than window_seconds ({window_seconds})"
             )
-        self._max_threads = max_threads
+        # config.toml cannot hold None: its default, 0, stands for it
+        self._max_threads = max_threads or None
 
         self._asr = None
         self._transcribe = None

@@ -16,6 +16,8 @@ so it works only with the browser transport.
 - `wasm_path`: absolute URL of the folder with the onnxruntime-web WASM files
 - `model_url`: absolute URL of the model; it takes `uint8` RGB as
   `[1, height, width, 3]` and returns `float32` alphas as `[1, height, width, 1]`
+- `max_threads`: cap on the onnxruntime-web WASM threads of the node's
+  Worker; 0 (default) leaves it to onnxruntime-web, `min(4, ceil(cores / 2))`
 
 ## Third-party files
 

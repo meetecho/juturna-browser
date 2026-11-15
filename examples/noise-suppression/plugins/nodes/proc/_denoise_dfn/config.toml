@@ -3,5 +3,6 @@ ort_url = ""
 wasm_path = ""
 model_url = ""
 attenuation_db = 100.0
+max_threads = 0
 
 [meta]

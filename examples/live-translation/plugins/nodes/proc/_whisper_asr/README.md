@@ -44,6 +44,8 @@ at every call; the language is not auto-detected or read from the message.
 - `window_seconds`: duration of audio transcribed at once, default `4.0`
 - `overlap_seconds`: audio carried from one window into the next, default
   `0.5`; must be less than `window_seconds`
+- `max_threads`: cap on the onnxruntime-web WASM threads of the node's
+  Worker; 0 (default) leaves it to onnxruntime-web, `min(4, ceil(cores / 2))`
 
 ## Third-party files
 

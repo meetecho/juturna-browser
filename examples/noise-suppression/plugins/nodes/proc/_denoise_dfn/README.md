@@ -31,6 +31,8 @@ held, rounded down to a multiple of 480.
 - `model_url`: absolute URL of the streaming model (`dfn3.onnx` in `assets.toml`)
 - `attenuation_db`: the most the noise is attenuated, in dB. Default 100, which
   leaves it to the model.
+- `max_threads`: cap on the onnxruntime-web WASM threads of the node's
+  Worker; 0 (default) leaves it to onnxruntime-web, `min(4, ceil(cores / 2))`
 
 ## Third-party files
 
