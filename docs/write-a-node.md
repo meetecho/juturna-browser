@@ -105,9 +105,11 @@ nothing is installed at run time. `background_blur` does its blur in numpy, in
 
 **A time budget per message.** While `update()` runs, no other node of its
 Worker does. At 24 fps a video node must stay well under 42 ms per frame,
-including the time to receive and send it (about 1.5 ms per hop for a 640×480
-RGBA frame). `background_blur` writes its own time in `meta['ms_blur']`, so
-the page can watch it.
+including the time to receive and send it: for a 640×480 RGBA frame, about
+1.5 ms between two Workers and 0.5 ms for one more node in the same Worker
+([What each step costs](how-it-works.md#what-each-step-costs)).
+`background_blur` writes its own time in `meta['ms_blur']`, so the page can
+watch it.
 
 ## 4. Build it into the bundle
 
@@ -217,16 +219,20 @@ mask = np.array(alphas.to_py(), dtype=np.float32).reshape(height, width)
 ```
 
 The node does not know where the page serves the library and the model, so
-their URLs are arguments, empty in `config.toml`:
+their URLs are arguments, empty in `config.toml`. `max_threads` caps the WASM
+threads of onnxruntime-web; TOML has no null, so its default is 0, which the
+node reads as `None` (onnxruntime-web's own choice):
 
 ```toml
 [arguments]
 ort_url = ""
 wasm_path = ""
 model_url = ""
+max_threads = 0
 ```
 
-The page passes absolute URLs:
+The page passes absolute URLs, and `null` for `max_threads` when its field is
+empty:
 
 ```js
 const url = (path) => new URL(path, location.href).href;
@@ -234,7 +240,8 @@ const url = (path) => new URL(path, location.href).href;
 { name: 'mask', type: 'extensions.nodes.PersonMask', worker: 'ml',
   configuration: { ort_url: url('../../vendor/person_mask/ort/ort.wasm.min.mjs'),
                    wasm_path: url('../../vendor/person_mask/ort/'),
-                   model_url: url('../../vendor/person_mask/selfie.onnx') } }
+                   model_url: url('../../vendor/person_mask/selfie.onnx'),
+                   max_threads: maxThreads } }
 ```
 
 ## 7. Declare third-party files
@@ -268,10 +275,15 @@ a file that is already there, are in
 ## 8. Keep the files between visits
 
 Fetched with `fetch()` or left to the runtime, the model and the WASM runtime
-are downloaded again at every visit. `self.juturnaFetch(url)` fetches like `fetch()` and keeps the file in the
-browser's Cache Storage; at the next visit the file costs a conditional request,
-not a download. `_LOAD` uses it for the model and for the runtime, which it
-hands to onnxruntime-web instead of letting it fetch the file on its own:
+depend on the browser's HTTP cache: whether the next visit downloads them again
+is up to the headers of the server and to what the cache keeps.
+`self.juturnaFetch(url)` fetches like `fetch()` and keeps the file in a Cache
+Storage of its own (`juturna-models`). At the next visit it asks the server
+whether the file changed: a `304`, or a `200` with the same strong `ETag` (the
+CDN of Hugging Face ignores the condition), returns the copy without reading
+the body, and so does a network or server error. `_LOAD` uses it for the model
+and for the runtime, which it hands to onnxruntime-web instead of letting it
+fetch the file on its own:
 
 ```js
 const get = self.juturnaFetch ?? fetch;
@@ -292,9 +304,9 @@ its model through transformers.js, see
 
 ## 9. Choose a Worker
 
-At 24 fps the demo measured 17 ms of segmentation and 21 ms of blur per frame
-([Demos](demos.md#background-blur)): in one Worker the two nodes would use
-almost all of the 42 ms budget. The demo gives each node a Worker with the
+With the webcam at 24 fps the demo measured 24 ms of segmentation and 26 ms
+of blur per frame ([Demos](demos.md#background-blur)): 50 ms, more than the
+42 ms budget of one Worker. The demo gives each node a Worker with the
 `worker` key:
 
 ```js
