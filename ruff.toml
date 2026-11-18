@@ -1,4 +1,5 @@
 exclude = [
+    "*.md",
     ".bzr",
     ".direnv",
     ".eggs",

@@ -1,0 +1,27 @@
+name: Node Imports
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  check-nodes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Juturna and numpy
+        run: pip install juturna==3.0.0 numpy
+
+      # a node module must import outside the browser, as
+      # `python -m juturna validate` needs
+      - name: Import every node of examples/ and test/plugins
+        run: python build/check_nodes.py
