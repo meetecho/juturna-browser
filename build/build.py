@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Build what a Pyodide Worker needs to run Juturna: a wheel of the library and
+r"""
+Build what a Pyodide Worker needs to run Juturna: a wheel of the library and
 a zip with the browser nodes, from checkouts of the juturna and juturna-nodes
 repositories.
 
 Usage:
-    python3 build/build.py --juturna /path/to/juturna --nodes /path/to/juturna_nodes \\
-        [--test-plugins] [--plugins DIR ...]
+    python3 build/build.py --juturna /path/to/juturna \\
+        --nodes /path/to/juturna_nodes [--test-plugins] [--plugins DIR ...]
 
 ``--juturna`` defaults to the ``JUTURNA_REPO`` environment variable, ``--nodes``
 to ``JUTURNA_NODES_REPO``.
@@ -56,6 +57,7 @@ __getattr__, __dir__ = _lazy_node_loaders(__name__, _AVAILABLE_PLUGINS)
 
 
 def build_wheel(juturna: pathlib.Path) -> pathlib.Path:
+    """Build the wheel of the juturna checkout into dist/."""
     subprocess.run(
         [
             sys.executable,
@@ -77,6 +79,7 @@ def build_wheel(juturna: pathlib.Path) -> pathlib.Path:
 def build_plugins(
     nodes: pathlib.Path, test_plugins: bool, extra: list[pathlib.Path]
 ) -> pathlib.Path:
+    """Zip the browser nodes and the extra plugins into dist/plugins.zip."""
     target = DIST / 'plugins.zip'
     package = nodes / 'src' / 'juturna' / 'nodes'
     registry = {}
@@ -158,7 +161,8 @@ def _add(
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__.split('\n')[0])
+    """Build dist/ from the command line arguments."""
+    parser = argparse.ArgumentParser(description=__doc__.strip().split('\n')[0])
     parser.add_argument(
         '--juturna',
         type=pathlib.Path,

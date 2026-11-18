@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Static file server for the examples and the browser tests.
+"""
+Static file server for the examples and the browser tests.
 
 It adds the COOP/COEP response headers that `SharedArrayBuffer` needs in the
 browser, and disables caching so that a rebuilt `dist/` is always served.
@@ -16,7 +17,9 @@ import sys
 
 
 class COOPCOEPRequestHandler(http.server.SimpleHTTPRequestHandler):
-    def end_headers(self):
+    """Static file handler that sends the COOP/COEP headers."""
+
+    def end_headers(self):  # noqa: D102
         self.send_header('Cross-Origin-Opener-Policy', 'same-origin')
         self.send_header('Cross-Origin-Embedder-Policy', 'require-corp')
         self.send_header('Cache-Control', 'no-store')
@@ -24,6 +27,7 @@ class COOPCOEPRequestHandler(http.server.SimpleHTTPRequestHandler):
 
 
 def main():
+    """Serve the current folder on the port given as argument."""
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 8000
 
     # a thread per connection: a browser keeps idle ones open, and one thread

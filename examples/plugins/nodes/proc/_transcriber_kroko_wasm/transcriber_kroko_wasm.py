@@ -74,7 +74,8 @@ _LOAD = """
   };
 
   const asrHelperSrc = await text(asrHelperUrl);
-  (0, eval)(asrHelperSrc); // defines global createOnlineRecognizer/OnlineRecognizer/OnlineStream
+  // defines global createOnlineRecognizer/OnlineRecognizer/OnlineStream
+  (0, eval)(asrHelperSrc);
 
   const mainSrc = await text(mainUrl);
   (0, eval)(mainSrc); // runs createWasm() on the .wasm and .data handed over
