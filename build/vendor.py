@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Fetch the third-party files that nodes load at run time into vendor/.
+"""
+Fetch the third-party files that nodes load at run time into vendor/.
 
 A node that needs such files (a model, a JavaScript runtime) declares them in
 an ``assets.toml`` next to its code:
@@ -44,6 +45,7 @@ MANIFEST = 'assets.toml'
 
 
 def load_manifest(path: pathlib.Path) -> list[dict]:
+    """Read the assets of an assets.toml, checking the required keys."""
     with path.open('rb') as f:
         assets = tomllib.load(f).get('asset', [])
 
@@ -72,6 +74,7 @@ def _node_class(node: pathlib.Path) -> str | None:
 def find_node_manifests(
     pipeline: pathlib.Path, plugins: list[pathlib.Path]
 ) -> list[pathlib.Path]:
+    """Find the assets.toml of the nodes a pipeline configuration uses."""
     config = json.loads(pipeline.read_text())
     nodes = {
         node: _node_class(node)
@@ -90,7 +93,9 @@ def find_node_manifests(
             if (folders[0] / MANIFEST).is_file():
                 found.append(folders[0] / MANIFEST)
         elif node['type'].startswith('extensions.'):
-            print(f'warning: node {node["name"]} ({name}) not found in {plugins}')
+            print(
+                f'warning: node {node["name"]} ({name}) not found in {plugins}'
+            )
 
     return found
 
@@ -98,6 +103,7 @@ def find_node_manifests(
 def collect(
     sources: list[pathlib.Path], extra_plugins: list[pathlib.Path]
 ) -> list[dict]:
+    """Collect the assets of the sources, refusing a path with two contents."""
     manifests = []
 
     for source in sources:
@@ -130,10 +136,12 @@ def collect(
 
 
 def sha256_of(path: pathlib.Path) -> str:
+    """Return the hex sha256 of a file."""
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def fetch(asset: dict, dest: pathlib.Path, force: bool) -> str:
+    """Download an asset into dest unless it is already there."""
     target = dest / asset['path']
 
     if not target.resolve().is_relative_to(dest.resolve()):
@@ -168,7 +176,8 @@ def fetch(asset: dict, dest: pathlib.Path, force: bool) -> str:
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__.split('\n')[0])
+    """Fetch the assets of the command line sources."""
+    parser = argparse.ArgumentParser(description=__doc__.strip().split('\n')[0])
     parser.add_argument('sources', nargs='+', type=pathlib.Path)
     parser.add_argument('--dest', type=pathlib.Path, default=ROOT / 'vendor')
     parser.add_argument(
@@ -189,7 +198,9 @@ def main():
 
     for asset in assets:
         state = fetch(asset, args.dest, args.force)
-        print(f'{asset["path"]}: {state} ({asset.get("license", "no license")})')
+        print(
+            f'{asset["path"]}: {state} ({asset.get("license", "no license")})'
+        )
 
 
 if __name__ == '__main__':

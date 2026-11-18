@@ -27,13 +27,15 @@ from juturna.payloads import ObjectPayload
 SAMPLING_RATE = 16000
 
 _LOAD = """
-(async (transformersUrl, wasmMjsUrl, wasmBinUrl, modelsUrl, modelId, revision, maxThreads) => {
+(async (transformersUrl, wasmMjsUrl, wasmBinUrl, modelsUrl, modelId, revision,
+        maxThreads) => {
   const { pipeline, env } = await import(transformersUrl);
   env.allowLocalModels = false;
   env.allowRemoteModels = true;
   env.remoteHost = modelsUrl;
   // a revision means a Hugging Face layout, none the vendor/ one
-  env.remotePathTemplate = revision ? '{model}/resolve/{revision}/' : '{model}/';
+  env.remotePathTemplate = revision
+    ? '{model}/resolve/{revision}/' : '{model}/';
   env.backends.onnx.wasm.wasmPaths = { mjs: wasmMjsUrl, wasm: wasmBinUrl };
   // juturna-browser's cache, checked at every visit, instead of the one of
   // transformers.js: in 4.3.0 env.fetch carries the model files and the
@@ -73,11 +75,11 @@ class WhisperASR(Node[AudioPayload, ObjectPayload]):
         wasm_mjs_url: str,
         wasm_bin_url: str,
         models_url: str,
-        model_id: str = "Xenova/whisper-base",
-        language: str = "english",
+        model_id: str = 'Xenova/whisper-base',
+        language: str = 'english',
         window_seconds: float = 4.0,
         overlap_seconds: float = 0.5,
-        revision: str = "",
+        revision: str = '',
         max_threads: int | None = None,
         **kwargs,
     ):
@@ -148,8 +150,8 @@ class WhisperASR(Node[AudioPayload, ObjectPayload]):
         # would never let it move on
         if not 0 <= self._overlap < self._window:
             raise ValueError(
-                f"overlap_seconds ({overlap_seconds}) must be at least 0 and "
-                f"less than window_seconds ({window_seconds})"
+                f'overlap_seconds ({overlap_seconds}) must be at least 0 and '
+                f'less than window_seconds ({window_seconds})'
             )
         # config.toml cannot hold None: its default, 0, stands for it
         self._max_threads = max_threads or None
@@ -176,7 +178,7 @@ class WhisperASR(Node[AudioPayload, ObjectPayload]):
         )
         self._transcribe = run_js(_TRANSCRIBE)
 
-        self.logger.info("whisper model loaded")
+        self.logger.info('whisper model loaded')
 
     def update(self, message: Message[AudioPayload], **kwargs):  # noqa: D102
         from pyodide.ffi import run_sync
@@ -186,8 +188,8 @@ class WhisperASR(Node[AudioPayload, ObjectPayload]):
 
         if payload.sampling_rate != SAMPLING_RATE or payload.channels > 1:
             raise ValueError(
-                f"{self.name} needs mono audio at {SAMPLING_RATE} Hz, got "
-                f"{payload.channels} channel(s) at {payload.sampling_rate} Hz"
+                f'{self.name} needs mono audio at {SAMPLING_RATE} Hz, got '
+                f'{payload.channels} channel(s) at {payload.sampling_rate} Hz'
             )
 
         if not len(self._audio):
@@ -217,7 +219,7 @@ class WhisperASR(Node[AudioPayload, ObjectPayload]):
                 )
                 out.meta.update(message.meta)
                 elapsed = time.perf_counter() - started
-                out.meta["ms_transcribe"] = round(elapsed * 1000, 1)
+                out.meta['ms_transcribe'] = round(elapsed * 1000, 1)
 
                 self.transmit(out)
 

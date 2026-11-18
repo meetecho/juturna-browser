@@ -2,3 +2,4 @@ dist/
 juturna-web-demo/
 __pycache__/
 vendor/
+node_modules/

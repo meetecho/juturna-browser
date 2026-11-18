@@ -20,7 +20,8 @@ from juturna.components import Node
 from juturna.payloads import ObjectPayload
 
 _LOAD = """
-(async (transformersUrl, wasmMjsUrl, wasmBinUrl, modelsUrl, modelId, revision, maxThreads) => {
+(async (transformersUrl, wasmMjsUrl, wasmBinUrl, modelsUrl, modelId, revision,
+        maxThreads) => {
   const { pipeline, env } = await import(transformersUrl);
   // transformers.js@4.3.0 workaround: the "local" path pre-check never
   // matches an http(s) URL, so the "remote" branch is used instead.
@@ -28,7 +29,8 @@ _LOAD = """
   env.allowRemoteModels = true;
   env.remoteHost = modelsUrl;
   // a revision means a Hugging Face layout, none the vendor/ one
-  env.remotePathTemplate = revision ? '{model}/resolve/{revision}/' : '{model}/';
+  env.remotePathTemplate = revision
+    ? '{model}/resolve/{revision}/' : '{model}/';
   env.backends.onnx.wasm.wasmPaths = { mjs: wasmMjsUrl, wasm: wasmBinUrl };
   // juturna-browser's cache, checked at every visit, instead of the one of
   // transformers.js: in 4.3.0 env.fetch carries the model files and the

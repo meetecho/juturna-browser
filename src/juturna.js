@@ -58,7 +58,9 @@ export class Juturna {
   constructor(base, pyodide, supervise) {
     this.#base = new URL(base, location.href).href;
     this.#pyodide = pyodide;
-    this.#supervise = { ...DEFAULT_SUPERVISE, ...supervise, restart: { ...DEFAULT_SUPERVISE.restart, ...supervise?.restart } };
+    this.#supervise = {
+      ...DEFAULT_SUPERVISE, ...supervise, restart: { ...DEFAULT_SUPERVISE.restart, ...supervise?.restart }
+    };
   }
 
   /**
@@ -360,7 +362,7 @@ class Pipeline {
         const { port1, port2 } = new MessageChannel();
         link().post({ cmd: 'port', node: name, port: port2 }, [port2]);
         return port1;
-      },
+      }
     };
   }
 
@@ -377,7 +379,7 @@ class Pipeline {
         if (!this.#listeners.has(name)) this.#listeners.set(name, new Set());
         this.#listeners.get(name).add(callback);
         return () => this.#listeners.get(name).delete(callback);
-      },
+      }
     };
   }
 
@@ -470,9 +472,9 @@ class Pipeline {
       workers: {
         ...Object.fromEntries(alive.map((name, i) => [name, parts[i].pipeline])),
         ...Object.fromEntries([...this.#restarting].map((name) => [name, 'restarting'])),
-        ...Object.fromEntries([...this.#lost].filter(([name]) => !this.#restarting.has(name)).map(([name]) => [name, 'lost'])),
+        ...Object.fromEntries([...this.#lost].filter(([name]) => !this.#restarting.has(name)).map(([name]) => [name, 'lost']))
       },
-      lost: Object.fromEntries(this.#lost),
+      lost: Object.fromEntries(this.#lost)
     };
   }
 
@@ -606,7 +608,8 @@ function detachable(message) {
   for (const [key, value] of Object.entries(payload)) {
     if (!ArrayBuffer.isView(value) || !(value.buffer instanceof ArrayBuffer)) continue;
     const whole = value.byteOffset === 0 && value.byteLength === value.buffer.byteLength;
-    const view = whole ? value : new value.constructor(value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength));
+    const view = whole
+      ? value : new value.constructor(value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength));
     payload[key] = view;
     buffers.add(view.buffer);
   }

@@ -19,7 +19,7 @@ export async function fetchAssets(base) {
 
   const [wheel, plugins] = await Promise.all([
     get('wheel.txt').then((resp) => resp.text()).then((name) => get(name.trim())).then(bytes),
-    get('plugins.zip').then(bytes),
+    get('plugins.zip').then(bytes)
   ]);
   return { wheel, plugins };
 }

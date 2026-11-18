@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Import every node module with CPython, outside the browser.
+"""
+Import every node module with CPython, outside the browser.
 
 ``python -m juturna validate`` resolves a node type by importing its module,
 and so would a pytest of the node: a node must import on desktop, which means
@@ -23,6 +24,7 @@ from build import _register
 
 
 def main():
+    """Import every node and report the ones that fail."""
     failed = 0
 
     for folder in (ROOT / 'examples', ROOT / 'test' / 'plugins'):

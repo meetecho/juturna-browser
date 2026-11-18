@@ -97,7 +97,9 @@ class BackgroundBlur(Node[ImagePayload, ImagePayload]):
             ),
         )
         result.meta.update(message.meta)
-        result.meta['ms_blur'] = round((time.perf_counter() - started) * 1000, 1)
+        result.meta['ms_blur'] = round(
+            (time.perf_counter() - started) * 1000, 1
+        )
 
         self.transmit(result)
 
@@ -126,16 +128,20 @@ class BackgroundBlur(Node[ImagePayload, ImagePayload]):
 
         return np.pad(
             big[:height, :width],
-            ((0, height - min(height, big.shape[0])),
-             (0, width - min(width, big.shape[1])),
-             (0, 0)),
+            (
+                (0, height - min(height, big.shape[0])),
+                (0, width - min(width, big.shape[1])),
+                (0, 0),
+            ),
             mode='edge',
         )
 
 
 def _box_blur(image: np.ndarray, radius: int) -> np.ndarray:
-    """Box blur in 16-bit sums: (2 * radius + 1) ** 2 values of at most 255
-    must fit in 65535, so radius <= 7."""
+    """
+    Box blur in 16-bit sums: (2 * radius + 1) ** 2 values of at most 255
+    must fit in 65535, so radius <= 7.
+    """
     size = 2 * radius + 1
     padded = np.pad(image, ((radius, radius), (radius, radius), (0, 0)), 'edge')
 

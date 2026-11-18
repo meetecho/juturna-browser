@@ -78,7 +78,8 @@ class PersonMask(Node[ImagePayload, ImagePayload]):
         Parameters
         ----------
         ort_url : str
-            Absolute URL of the onnxruntime-web ES module (``ort.wasm.min.mjs``).
+            Absolute URL of the onnxruntime-web ES module
+            (``ort.wasm.min.mjs``).
         wasm_path : str
             Absolute URL of the folder with the onnxruntime-web WASM files.
         model_url : str
