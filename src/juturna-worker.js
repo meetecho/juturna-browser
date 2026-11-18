@@ -10,8 +10,8 @@ self.juturnaFetch = (url) => cachedFetch(url);
 
 let pyodide = null;
 let py = null;                       // the Python functions below
-let feedChain = Promise.resolve();   // feed() one at a time: concurrent
-                                     // callPromising() calls may reorder
+// feed() one at a time: concurrent callPromising() calls may reorder
+let feedChain = Promise.resolve();
 
 const PY_RUNTIME = `
 import json
@@ -109,7 +109,7 @@ const COMMANDS = {
   async stop() { await feedChain; await py.stop.callPromising(); },
   async destroy() { await feedChain; await py.destroy.callPromising(); },
   async status() { return JSON.parse(await py.status.callPromising()); },
-  telemetry() { return JSON.parse(py.telemetry()); },
+  telemetry() { return JSON.parse(py.telemetry()); }
 };
 
 function feed(node, message) {

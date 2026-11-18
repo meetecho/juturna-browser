@@ -7,7 +7,7 @@ const REVISIONS = {
   'Xenova/opus-mt-en-es': '4b002a4c7edd54a7ced58877258b87f7efd3f892',
   'Xenova/opus-mt-en-fr': '28726206f80896b90035bd99cccd5cc1e151f916',
   'Xenova/opus-mt-en-it': '075406e3c8c2c30634d4a1bd8f00c21d9e162011',
-  'Xenova/opus-mt-en-zh': '046f55aec303cdee3e0318604406d4df20f1e8ea',
+  'Xenova/opus-mt-en-zh': '046f55aec303cdee3e0318604406d4df20f1e8ea'
 };
 
 export function models(node, modelId) {

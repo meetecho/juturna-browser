@@ -27,8 +27,10 @@ class Capture extends AudioWorkletProcessor {
       // on the cleaned block, which travels the same clock
       this.pipeline.postMessage({
         kind: 'audio',
-        payload: { audio: block, sampling_rate: sampleRate, channels: 1, start: (currentFrame + i + 1 - 480) / sampleRate },
-        meta: { t: currentTime },
+        payload: {
+          audio: block, sampling_rate: sampleRate, channels: 1, start: (currentFrame + i + 1 - 480) / sampleRate
+        },
+        meta: { t: currentTime }
       }, [block.buffer]);
       this.port.postMessage(copy, [copy.buffer]);
     }

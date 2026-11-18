@@ -26,8 +26,10 @@ except Exception as e:
 `)));
 
     const cfg = { pipeline: { name: 'bd', id: 'bd-1', folder: '/tmp/juturna/bd', transport: 'browser',
-      nodes: [{ name: 'in', type: 'BrowserInput', configuration: {} },
-              { name: 'out', type: 'BrowserOutput', configuration: {} }],
+      nodes: [
+        { name: 'in', type: 'BrowserInput', configuration: {} },
+        { name: 'out', type: 'BrowserOutput', configuration: {} }
+      ],
       links: [{ from: 'in', to: 'out' }] } };
     self.juturna_config = JSON.stringify(cfg);
     const stopCell = new Int32Array(new SharedArrayBuffer(4));
