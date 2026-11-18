@@ -1,0 +1,19 @@
+name: Release Please
+
+# release-please reads release-please-config.json from main, and the
+# release-as input of the action is ignored with a config file: to force a
+# version, push a commit with a `Release-As: x.y.z` footer
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: googleapis/release-please-action@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
