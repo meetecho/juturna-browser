@@ -10,7 +10,8 @@ is in [How it works](how-it-works.md); every function is in the
 ## Your first pipeline
 
 **1. Build the bundle.** `dist/` holds a wheel of Juturna and the browser
-nodes, built from checkouts of the `juturna` and `juturna-nodes` repositories:
+nodes, built from checkouts of the `juturna` (3.0.0) and `juturna-nodes` (0.1.1)
+repositories:
 
 ```
 python3 build/build.py --juturna /path/to/juturna --nodes /path/to/juturna_nodes

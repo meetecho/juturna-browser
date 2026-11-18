@@ -54,7 +54,7 @@ WebAssembly builds of native libraries are the way to run models.
   `Cross-Origin-Embedder-Policy: require-corp` headers, without which
   `SharedArrayBuffer` does not exist. `serve.py` sends them.
 - Juturna 3.0.0 or later (it has the browser transport), and the nodes
-  `BrowserInput` and `BrowserOutput` of juturna-nodes.
+  `BrowserInput` and `BrowserOutput` of juturna-nodes 0.1.1 or later.
 
 ## Documentation
 
