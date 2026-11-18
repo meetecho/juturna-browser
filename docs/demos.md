@@ -11,7 +11,9 @@
 - [Live translation with Kroko](#live-transcription-and-translation-with-kroko):
   <a class="try-it" href="../examples/live-translation-kroko/index.html">▶ Try it</a>
 
-The pages need the local server described in [Run them locally](#run-them-locally).
+On the documentation site the demos run as they are, from the buttons above.
+From a clone of the repository they need the local server described in
+[Run them locally](#run-them-locally).
 
 Six demos in `examples/`, eight pages, use the same API, and all but the
 microphone one run real models:

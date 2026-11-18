@@ -1,8 +1,10 @@
 # juturna-browser
 
 juturna-browser runs a [Juturna](https://github.com/meetecho/juturna) pipeline
-inside a browser tab, from the same JSON configuration used on a server. The
-nodes run in Pyodide Web Workers; the page feeds them with `feed()` and
+inside a browser tab. It uses the same JSON configuration format and node
+model as a server, with `"transport": "browser"` and the `BrowserInput` and
+`BrowserOutput` nodes at the boundary with the page. The nodes run in
+Pyodide Web Workers; the page feeds them with `feed()` and
 receives their results with `on('message')`. Audio and video from the
 microphone and the camera are processed where they are captured: no server
 receives them.
