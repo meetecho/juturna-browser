@@ -2,8 +2,13 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>juturna: background blur</title>
+<title>Background blur in the browser · Juturna</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Blurs the background of your webcam video with a portrait segmentation model running in the browser tab; the video never leaves your device.">
+<meta property="og:title" content="Background blur in the browser · Juturna">
+<meta property="og:description" content="Blurs the background of your webcam video with a portrait segmentation model running in the browser tab; the video never leaves your device.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://meetecho.github.io/juturna/demos/examples/video-blur/index.html">
 <link rel="stylesheet" href="../demo.css">
 </head>
 <body>
@@ -39,6 +44,10 @@
   <pre id="log"></pre>
   <video id="cam" playsinline muted hidden></video>
 </main>
+<footer class="site-foot"><div class="wrap">
+  <p>Built with Juturna. <a href="https://meetecho.github.io/juturna/index.html#quick-start">Start with the quick start</a></p>
+  <p>Need this in production? <a href="https://meetecho.github.io/juturna/work_with_meetecho.html">Work with Meetecho</a></p>
+</div></footer>
 <script type="module">
 import { Juturna } from '../../src/juturna.js';
 import { withTelemetry, showTelemetry } from '../telemetry.js';
