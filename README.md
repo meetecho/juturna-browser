@@ -2,12 +2,12 @@
 
 juturna-browser runs a [Juturna](https://github.com/meetecho/juturna) pipeline
 inside a browser tab. It uses the same JSON configuration format and node
-model as a server, with `"transport": "browser"` and the `BrowserInput` and
+model as a server, but with nodes written for Pyodide, not the ones a server
+runs: `"transport": "browser"` in the pipeline, and the `BrowserInput` and
 `BrowserOutput` nodes at the boundary with the page. The nodes run in
-Pyodide Web Workers; the page feeds them with `feed()` and
-receives their results with `on('message')`. Audio and video from the
-microphone and the camera are processed where they are captured: no server
-receives them.
+Pyodide Web Workers; the page feeds them with `feed()` and receives their
+results with `on('message')`. Audio and video from the microphone and the
+camera are processed where they are captured: no server receives them.
 
 ```js
 import { Juturna } from './src/juturna.js';
@@ -39,8 +39,8 @@ Capturing the data (microphone, files, canvas) is up to the page.
 
 - The data is in the page and should stay there: speech recognition,
   translation, segmentation or denoising on the user's own device.
-- The same pipeline has to run on a server and in a browser, with one
-  configuration and the same nodes.
+- You want to keep the same pipeline structure and configuration format on a
+  server and in a browser, with a browser version of each node.
 - A node needs its own thread: a node that keeps the CPU busy only stalls its
   own Worker.
 
