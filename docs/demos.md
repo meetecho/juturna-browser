@@ -1,15 +1,13 @@
 # Demos
 
-- [Microphone](#microphone): <a class="try-it" href="../examples/microphone.html">▶ Try it</a>
-- [Background blur](#background-blur): <a class="try-it" href="../examples/video-blur/index.html">▶ Try it</a>
-  <a class="try-it" href="../examples/video-blur/canvas.html">▶ Canvas version</a>
-- [Noise suppression](#noise-suppression): <a class="try-it" href="../examples/noise-suppression/index.html">▶ Try it</a>
-- [Live translation](#live-translation): <a class="try-it" href="../examples/live-translation/index.html">▶ Try it</a>
-  <a class="try-it" href="../examples/live-translation/text.html">▶ Text version</a>
-- [Live transcription with Kroko](#live-transcription-and-translation-with-kroko):
-  <a class="try-it" href="../examples/live-transcription-kroko/index.html">▶ Try it</a>
-- [Live translation with Kroko](#live-transcription-and-translation-with-kroko):
-  <a class="try-it" href="../examples/live-translation-kroko/index.html">▶ Try it</a>
+| Demo | Try |
+|---|---|
+| [Microphone](#microphone) | <a class="try-it" href="../examples/microphone.html">▶ Try it</a> |
+| [Background blur](#background-blur) | <a class="try-it" href="../examples/video-blur/index.html">▶ Try it</a> <a class="try-it" href="../examples/video-blur/canvas.html">▶ Canvas version</a> |
+| [Noise suppression](#noise-suppression) | <a class="try-it" href="../examples/noise-suppression/index.html">▶ Try it</a> |
+| [Live translation](#live-translation) | <a class="try-it" href="../examples/live-translation/index.html">▶ Try it</a> <a class="try-it" href="../examples/live-translation/text.html">▶ Text version</a> |
+| [Streaming transcription](#live-transcription-and-translation-with-kroko) | <a class="try-it" href="../examples/live-transcription-kroko/index.html">▶ Try it</a> |
+| [Streaming transcription and translation](#live-transcription-and-translation-with-kroko) | <a class="try-it" href="../examples/live-translation-kroko/index.html">▶ Try it</a> |
 
 On the documentation site the demos run as they are, from the buttons above.
 From a clone of the repository they need the local server described in
