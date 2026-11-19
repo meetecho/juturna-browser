@@ -21,33 +21,6 @@ them. All but the microphone one run real models. Add `?telemetry` to the URL
 of any of them to see the messages each node receives and sends, live under
 the page. How the demos are built is in the [Guide](guide.md).
 
-## Run them locally
-
-One bundle serves every demo:
-
-```
-python3 build/vendor.py examples/video-blur/plugins examples/noise-suppression/plugins examples/live-translation/plugins examples/plugins
-python3 build/build.py --juturna /path/to/juturna --nodes /path/to/juturna_nodes \
-    --plugins examples/video-blur/plugins \
-    --plugins examples/noise-suppression/plugins \
-    --plugins examples/live-translation/plugins \
-    --plugins examples/plugins
-python3 serve.py 8765
-```
-
-`build/vendor.py` fetches into `vendor/` the files the nodes declare in their
-`assets.toml`, checking each checksum. The speech and translation models are
-read from Hugging Face, at the commits those files pin; add `?models=vendor`
-to the URL to read them from `vendor/` instead, for example to work offline.
-The Kroko demos also need a WebAssembly build of the model, made with the
-script described in the README of `transcriber_kroko_wasm`.
-
-A demo needs only its own nodes: `build/vendor.py` and `--plugins` take the
-folders of that demo alone.
-
-`index.html`, at the root of the repository, links every demo and shows the
-measured numbers.
-
 ## Microphone
 
 <a class="try-it" href="../examples/microphone.html">▶ Try it</a>
@@ -126,6 +99,33 @@ ends the utterance. Loading the model takes about 3 s.
 
 On the translation page `?maxThreads=` sets the threads of the translation;
 the transcription is single-threaded.
+
+## Run them locally
+
+One bundle serves every demo:
+
+```
+python3 build/vendor.py examples/video-blur/plugins examples/noise-suppression/plugins examples/live-translation/plugins examples/plugins
+python3 build/build.py --juturna /path/to/juturna --nodes /path/to/juturna_nodes \
+    --plugins examples/video-blur/plugins \
+    --plugins examples/noise-suppression/plugins \
+    --plugins examples/live-translation/plugins \
+    --plugins examples/plugins
+python3 serve.py 8765
+```
+
+`build/vendor.py` fetches into `vendor/` the files the nodes declare in their
+`assets.toml`, checking each checksum. The speech and translation models are
+read from Hugging Face, at the commits those files pin; add `?models=vendor`
+to the URL to read them from `vendor/` instead, for example to work offline.
+The Kroko demos also need a WebAssembly build of the model, made with the
+script described in the README of `transcriber_kroko_wasm`.
+
+A demo needs only its own nodes: `build/vendor.py` and `--plugins` take the
+folders of that demo alone.
+
+`index.html`, at the root of the repository, links every demo and shows the
+measured numbers.
 
 ## Models and licenses
 
