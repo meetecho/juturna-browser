@@ -9,6 +9,9 @@ Pyodide Web Workers; the page feeds them with `feed()` and receives their
 results with `on('message')`. Audio and video from the microphone and the
 camera are processed where they are captured: no server receives them.
 
+Try the [hosted demos](https://meetecho.github.io/juturna/browser/demos.html),
+or read the [Juturna documentation](https://meetecho.github.io/juturna/).
+
 ```js
 import { Juturna } from './src/juturna.js';
 
@@ -35,6 +38,26 @@ jt.terminate();
 that do the work go between them, each in the Worker its `"worker"` key names.
 Capturing the data (microphone, files, canvas) is up to the page.
 
+## Quick start
+
+```
+git clone https://github.com/meetecho/juturna-browser
+git clone https://github.com/meetecho/juturna
+git clone https://github.com/meetecho/juturna_nodes
+cd juturna-browser
+python3 build/build.py --juturna ../juturna --nodes ../juturna_nodes
+python3 serve.py 8765
+```
+
+Open <http://127.0.0.1:8765/examples/microphone.html> in Chrome and press
+Start. The microphone demo needs nothing more; the demos that run models also
+need the files fetched by `build/vendor.py` and their `--plugins` folders, as
+[Run them locally](docs/demos.md#run-them-locally) shows. To write a page of
+your own, follow the [Guide](docs/guide.md).
+
+juturna-browser is not published on npm: a page uses `src/` and the `dist/`
+bundle from a checkout.
+
 ## When it fits
 
 - The data is in the page and should stay there: speech recognition,
@@ -51,7 +74,8 @@ WebAssembly builds of native libraries are the way to run models.
 ## Requirements
 
 - Chrome 137 or later (JSPI), tested on 157.
-- Pyodide 314 or later, loaded from the CDN by the Worker.
+- Pyodide, loaded from the jsDelivr CDN by the Worker: v314.0.6 by default,
+  another release with the `pyodide` option of `Juturna.create()`.
 - A page served with the `Cross-Origin-Opener-Policy: same-origin` and
   `Cross-Origin-Embedder-Policy: require-corp` headers, without which
   `SharedArrayBuffer` does not exist. `serve.py` sends them.
@@ -68,6 +92,8 @@ WebAssembly builds of native libraries are the way to run models.
 | [Demos](docs/demos.md) | Try the six demos, see what each one measures, and find the licenses of the models |
 | [API reference](docs/api.md) | Look up a function, a configuration key, a message format or where an error shows |
 | [Development](docs/development.md) | Build the bundle, fetch third-party files, run the test pages |
+| [Contributing](CONTRIBUTING.md) | Report a bug, propose a change or open a pull request |
+| [Security](SECURITY.md) | Report a vulnerability |
 
 ## License
 
