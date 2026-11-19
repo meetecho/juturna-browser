@@ -15,11 +15,11 @@ On the documentation site the demos run as they are, from the buttons above.
 From a clone of the repository they need the local server described in
 [Run them locally](#run-them-locally).
 
-Six demos in `examples/`, eight pages, use the same API, and all but the
-microphone one run real models:
-`Juturna.create()`, `pipe.input().feed()`, `pipe.output().on('message')`.
-Each heavy node has a Worker of its own. Add `?telemetry` to the URL of any of
-them to see the messages each node receives and sends, live under the page.
+Six demos, eight pages. Each one runs entirely in the tab: the camera and the
+microphone are processed where they are captured, and no server receives
+them. All but the microphone one run real models. Add `?telemetry` to the URL
+of any of them to see the messages each node receives and sends, live under
+the page. How the demos are built is in the [Guide](guide.md).
 
 ## Run them locally
 
@@ -52,27 +52,22 @@ measured numbers.
 
 <a class="try-it" href="../examples/microphone.html">▶ Try it</a>
 
-The microphone goes through a pipeline of `BrowserInput` and `BrowserOutput`,
-plus an image round trip. The page shows the chunks received, their level and any that arrive out of
-order. It is the smallest complete page to start from.
+The microphone audio goes through a pipeline and comes back to the page,
+which shows the chunks received, their level and any that arrive out of order.
+It is the smallest complete page to start from.
 
 ## Background blur
 
-Webcam frames go through a pipeline of three Workers: `person_mask` runs a
-portrait segmentation model with onnxruntime-web and writes the mask in the
-alpha channel, `background_blur` blurs what the mask marks as background
-(numpy), and the result is drawn on a `<canvas>`.
+The webcam image comes back with the background blurred: a portrait
+segmentation model finds the person, and everything else is blurred.
 
 <a class="try-it" href="../examples/video-blur/index.html">▶ Try it</a>
 <a class="try-it" href="../examples/video-blur/canvas.html">▶ Canvas version</a>
 
-The main page asks the camera for 24 fps (`?fps=` changes it). The page keeps at most three frames in flight
-(`?inflight=`) and drops the others, so the delay does not build up when the
-pipeline is slower than the camera.
-
-The canvas version is the same pipeline without `background_blur`: only `person_mask` runs, and the page's own canvas
-does the compositing (`filter: blur()` for the background, `drawImage`
-respecting the per-pixel alpha of the mask for the soft edge).
+The main page asks the camera for 24 fps (`?fps=` changes it) and drops frames
+when the pipeline falls behind, so the delay does not build up (`?inflight=`
+sets how many frames may be in flight, three by default). The canvas version
+looks the same and blurs on the page instead of in the pipeline.
 
 Measured on a 12-core desktop, Chrome 157, at commit `db0897a` (2026-11-14). The synthetic rows are the median of three runs; the webcam rows are one session, medians of the last 60 frames:
 
@@ -84,39 +79,30 @@ Measured on a 12-core desktop, Chrome 157, at commit `db0897a` (2026-11-14). The
 | `test/video-blur-canvas.html?fps=24&inflight=3`, synthetic frames | 0 dropped (2 with `video-blur.html`) | 33 ms (51 ms with `video-blur.html`) | 8 ms of canvas compositing instead of 21 ms of numpy blur |
 | `canvas.html`, webcam at 24 fps | 23.8 fps, 0 frames dropped | 26 ms | 16 ms segmentation, 2.9 ms of canvas compositing |
 
-Compositing on the canvas saves a Worker and loses nothing: the segmentation
-is the same.
-
 ## Noise suppression
 
 <a class="try-it" href="../examples/noise-suppression/index.html">▶ Try it</a>
 
-The microphone goes through `denoise_dfn`, which removes the noise from speech
-with DeepFilterNet3 run by onnxruntime-web. `?synthetic=1` uses a voice-like tone
-with steady noise instead of the microphone; `?attenuation=12` lets some noise
-through. The attenuation is fixed when the node warms up, so the page builds a
-new pipeline to try another value on the audio it already recorded.
+The noise is removed from the speech captured by the microphone, with the
+DeepFilterNet3 model. `?synthetic=1` uses a voice-like tone with steady noise
+instead of the microphone; `?attenuation=12` lets some noise through. Another
+attenuation can be tried on the audio already recorded.
 
 ## Live translation
 
 <a class="try-it" href="../examples/live-translation/index.html">▶ Try it</a>
 <a class="try-it" href="../examples/live-translation/text.html">▶ Text version</a>
 
-English speech, or typed text, becomes a live transcript and a translation,
-through two nodes on transformers.js and onnxruntime-web, each in its own
-Worker: `whisper_asr` (Whisper, speech to English text) and `translate_opus`
-(OPUS-MT, English to Italian, Spanish, Chinese or German).
+English speech, or typed text, becomes a live transcript and a translation
+into Italian, Spanish, Chinese or German, with the Whisper and OPUS-MT models.
 
-- The main page: the microphone, then `whisper_asr`, then `translate_opus`. The target language
-  (`?target=`), the transcription window (`?window=`) and the capture chunk are
-  set before pressing Start; changing the target language needs Stop, since it
-  picks a different model.
-- The text version: a text box feeds `translate_opus` alone, with an `object` message (`{kind: 'object', payload:
-  {text}}`; `decode_message` builds an `ObjectPayload` from it), the same
-  shape `translate_opus` reads from `whisper_asr`. The
-  translation of the line being typed overwrites itself (500 ms debounce by
-  default, `?debounce=`); Enter commits it to the history and starts a new
-  line.
+- The main page transcribes the microphone and translates the transcript. The
+  target language (`?target=`), the transcription window (`?window=`) and the
+  capture chunk are set before pressing Start; changing the target language
+  needs Stop, since it picks a different model.
+- The text version translates what is typed in a text box. The translation of
+  the line being typed updates as it changes (500 ms debounce by default,
+  `?debounce=`); Enter commits it to the history and starts a new line.
 
 Loading the two models takes about 2.7 s. On the JFK sample (11 s, fed in real
 time in 1 s chunks), a 4 s window takes 1.8 s to transcribe and 0.4 s to
@@ -128,21 +114,18 @@ window.
 <a class="try-it" href="../examples/live-transcription-kroko/index.html">▶ Try transcription</a>
 <a class="try-it" href="../examples/live-translation-kroko/index.html">▶ Try translation</a>
 
-- Transcription: the microphone goes through `transcriber_kroko_wasm`, Kroko's
-  streaming Zipformer for English run by sherpa-onnx compiled to WebAssembly. Unlike
-  `whisper_asr`, it transcribes as the audio arrives: each 100 ms chunk updates
-  the current line, and the line is final when the model detects the end of
-  the utterance.
-- Translation: the same transcription followed by `translate_opus`, which
-  translates only the final lines.
+- Transcription: English speech from the microphone is transcribed with
+  Kroko's streaming model. Unlike the Whisper demo, it transcribes as the audio
+  arrives: each 100 ms chunk updates the current line, and the line is final
+  when the model detects the end of the utterance.
+- Translation: the same transcription, with each final line translated.
 
 On the JFK sample, fed in real time in 100 ms chunks, each chunk takes under
 1 ms to transcribe, and a final line arrives about 140 ms after the chunk that
 ends the utterance. Loading the model takes about 3 s.
 
-The WebAssembly build is single-threaded, so the transcription page has no
-thread setting; on the translation page `?maxThreads=` applies to
-`translate_opus` only.
+On the translation page `?maxThreads=` sets the threads of the translation;
+the transcription is single-threaded.
 
 ## Models and licenses
 

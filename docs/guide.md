@@ -1,7 +1,7 @@
 # Guide
 
 This guide builds a first pipeline in a page, then covers the tasks that come
-next: feeding audio and video, spreading nodes over several Workers, handling
+next: feeding audio, video and text, spreading nodes over several Workers, handling
 a Worker that is lost and watching the messages. Writing a node has its own
 page, [Write a browser node](write-a-node.md). How the pieces work underneath
 is in [How it works](how-it-works.md); every function is in the
@@ -77,6 +77,11 @@ workletNode.port.postMessage({ port }, [port]);              // hand it to the w
 Sampling rate, chunking and timestamps travel in the messages: nothing in the
 nodes is configured about the page.
 
+A node reads its configuration when it warms up. To change a value, such as
+the attenuation of `denoise_dfn`, build a new pipeline:
+`examples/noise-suppression` does it to process the audio it already recorded
+again.
+
 ## Feed video and drop frames
 
 A frame is an `image` message. `examples/video-blur` reads the camera with a
@@ -91,6 +96,26 @@ Real-time video needs the page to decide what happens when the pipeline is
 slower than the camera: `feed()` does not push back, the frames pile up and so
 does the delay. The demo counts the frames in flight (fed and not yet shown)
 and drops the new ones beyond three.
+
+The demo runs `person_mask`, a portrait segmentation model on
+onnxruntime-web that writes the mask in the alpha channel, then
+`background_blur`, which blurs what the mask marks as background with numpy.
+`canvas.html` drops `background_blur` and composites on the page's own canvas:
+`filter: blur()` for the background, and `drawImage` respecting the per-pixel
+alpha of the mask for the soft edge. That saves a Worker and loses nothing,
+since the segmentation is the same.
+
+## Feed text and objects
+
+Text and other plain values travel as an `object` message (the other kinds are
+`audio`, `image` and `bytes`): `decode_message` builds an `ObjectPayload` from
+its fields. `examples/live-translation/text.html` feeds the text of a box to
+`translate_opus` alone, in the same shape `translate_opus` reads from
+`whisper_asr`:
+
+```js
+input.feed({ kind: 'object', payload: { text }, meta: { final } });
+```
 
 ## Run nodes in several Workers
 
@@ -112,6 +137,14 @@ test, a probe crossing the pipeline had a median delay of 107 ms with a node
 burning the CPU for 200 ms per message in the same Worker, and 2 ms with the
 node in another. Each Worker costs memory (a Pyodide instance) and its start,
 which happens in parallel with the others.
+
+The demos give each heavy node a Worker of its own: `person_mask` and
+`background_blur` in `examples/video-blur`, `whisper_asr` (Whisper on
+transformers.js) and `translate_opus` (OPUS-MT) in
+`examples/live-translation`. The Kroko demos run `transcriber_kroko_wasm`,
+Kroko's streaming Zipformer compiled to WebAssembly with sherpa-onnx; that
+build is single-threaded, so `?maxThreads=` on the translation page applies to
+`translate_opus` only.
 
 ## Lost Workers
 
