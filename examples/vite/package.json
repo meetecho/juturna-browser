@@ -1,0 +1,15 @@
+{
+  "name": "juturna-browser-vite-example",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "setup": "npm install && rm -f juturna-browser-*.tgz && npm pack ../.. && npm install --no-save ./juturna-browser-*.tgz && npm run bundle",
+    "bundle": "juturna-browser build --out public/juturna",
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "6.4.1"
+  }
+}
