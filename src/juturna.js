@@ -21,7 +21,8 @@ import { poisonRing, repairRing } from './ring.js';
 
 export { prefetch } from './model-cache.js';
 
-const DEFAULT_BASE = new URL('../dist/', import.meta.url);
+// the bundle of a checkout: a page built with a bundler passes its own base
+const DEFAULT_BASE = new URL(/* @vite-ignore */ '../dist/', import.meta.url);
 const DEFAULT_SUPERVISE = {
   pingMs: 1000, timeoutMs: 5000, poisonRings: true, buildTimeoutMs: 300000,
   restart: { maxRestarts: 0, delayMs: 500, timeoutMs: 30000 }

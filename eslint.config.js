@@ -3,7 +3,8 @@ import globals from 'globals';
 import stylistic from '@stylistic/eslint-plugin';
 
 export default [
-  { ignores: ['bench/', 'dist/', 'vendor/', 'juturna-web-demo/', 'node_modules/'] },
+  { ignores: ['bench/', 'dist/', 'vendor/', 'juturna-web-demo/', 'node_modules/', 'examples/vite/dist/',
+    'examples/vite/public/juturna/'] },
   js.configs.recommended,
   {
     languageOptions: {
@@ -22,5 +23,6 @@ export default [
       '@stylistic/comma-dangle': ['error', 'never'],
       '@stylistic/max-len': ['error', { code: 120, ignoreUrls: true, ignoreStrings: true, ignoreTemplateLiterals: true }]
     }
-  }
+  },
+  { files: ['bin/**'], languageOptions: { globals: globals.node } }
 ];

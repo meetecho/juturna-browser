@@ -1,12 +1,12 @@
 {
   "name": "juturna-browser",
   "version": "0.1.0",
-  "private": true,
   "description": "Run Juturna pipelines in a browser tab",
   "license": "MIT",
   "type": "module",
   "exports": "./src/juturna.js",
-  "files": ["src"],
+  "bin": { "juturna-browser": "bin/juturna-browser.js" },
+  "files": ["src", "build/*.py", "bin"],
   "repository": "github:meetecho/juturna-browser",
   "scripts": {
     "lint": "eslint ."
