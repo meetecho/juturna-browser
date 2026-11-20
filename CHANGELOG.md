@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.1](https://github.com/meetecho/juturna-browser/compare/v0.2.0...v0.2.1) (2026-11-20)
+
+
+### Documentation
+
+* **readme:** add the npm badge, lead with the npm install and pin the checkout clones ([e7d96ee](https://github.com/meetecho/juturna-browser/commit/e7d96eeee1eb679058a56c849ab5b295e0e30973))
+* **readme:** add the npm badge, lead with the npm install and pin the checkout clones ([683e9b4](https://github.com/meetecho/juturna-browser/commit/683e9b4b3eacb8b7838bfdfd26e97da7dc58d72f))
+
 ## [0.2.0](https://github.com/meetecho/juturna-browser/compare/v0.1.0...v0.2.0) (2026-11-20)
 
 
