@@ -62,6 +62,58 @@ installs Juturna in every Worker.
 `examples/microphone.html` is the same pipeline fed by
 the microphone, plus an image round trip. Accept the microphone permission.
 
+## Use it in a Vite app
+
+Installed from npm, the package gives the API and a `juturna-browser` command
+that runs the scripts of `build/` with python3: 3.11 or later for `build` (with
+pip) and `vendor`, 3.12 or later for `check`. Build the bundle, and fetch the
+third-party files of your nodes if they declare any, into `public/`:
+
+```
+npm install juturna-browser
+npx juturna-browser build --plugins ./nodes --out public/juturna
+npx juturna-browser vendor ./nodes --dest public/vendor
+```
+
+Without `--juturna` and `--nodes`, `build` downloads the wheels of Juturna
+3.0.0 and juturna-nodes 0.1.1 from PyPI: the versions the JavaScript of the
+package is written for. Run it again after changing a node. Outside a
+checkout, give `vendor` a `--dest`: its default, `vendor/` of the package,
+would be inside `node_modules`. Vite serves
+`public/juturna` at `/juturna/`, which is the `base` the page passes:
+
+```js
+import { Juturna } from 'juturna-browser';
+
+const jt = await Juturna.create({ base: '/juturna/' });
+```
+
+`vite.config.js` needs three settings:
+
+```js
+import { defineConfig } from 'vite';
+
+const headers = {
+  'Cross-Origin-Opener-Policy': 'same-origin',
+  'Cross-Origin-Embedder-Policy': 'require-corp'
+};
+
+export default defineConfig({
+  server: { headers },                               // vite (dev)
+  preview: { headers },                              // vite preview
+  optimizeDeps: { exclude: ['juturna-browser'] },    // the Worker fails to start in dev without it
+  build: { target: 'esnext' }                        // if the page uses top-level await
+});
+```
+
+The headers make `SharedArrayBuffer` available. Vite sends them only from its
+own servers: the host that serves the built app in production must send the
+same two headers, and the files the page loads from elsewhere must be served
+from `public/` (`public/vendor` above), not from another host.
+`juturna-browser check ./nodes` imports your nodes with CPython, as
+[Write a browser node](write-a-node.md) explains; unlike `build`, it needs
+Python 3.12 or later with juturna and numpy installed. [examples/vite](../examples/vite) is a working app.
+
 ## Feed audio from the microphone
 
 The page captures the audio; `examples/microphone.html` is a complete example.

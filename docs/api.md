@@ -20,7 +20,7 @@ not answer within `supervise.buildTimeoutMs`.
 
 | Option | Default | |
 |---|---|---|
-| `base` | `../dist/` (relative to `src/`) | Folder with the output of `build/build.py`. |
+| `base` | `../dist/` (relative to `src/`) | Folder with the output of `build/build.py` (`juturna-browser build`). A page built with a bundler passes it: the default does not survive bundling. |
 | `pyodide` | `'v314.0.6'` | Pyodide version, loaded from the jsDelivr CDN (no integrity check is possible on a dynamic `import()`). |
 | `pyodideBase` | none | URL of a folder with a copy of that Pyodide release, served by the page: loaded from there instead of the CDN. |
 | `workers` | `['main']` | Names of the Workers to start now. The ones a pipeline needs and are missing are started by `pipeline()`. |

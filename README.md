@@ -38,7 +38,30 @@ jt.terminate();
 that do the work go between them, each in the Worker its `"worker"` key names.
 Capturing the data (microphone, files, canvas) is up to the page.
 
-## Quick start
+## Install
+
+```
+npm install juturna-browser
+npx juturna-browser build --out public/juturna
+```
+
+The package holds the JavaScript runtime and the build scripts, not a bundle:
+`juturna-browser build` writes the wheel of Juturna 3.0.0 and the browser nodes
+of juturna-nodes 0.1.1, both downloaded from PyPI, plus the nodes of your own
+`--plugins` folders. It needs python3 3.11 or later with pip; Juturna does not
+have to be installed (only `juturna-browser check` needs it, with Python 3.12 or
+later). The page then passes the folder it is served at:
+
+```js
+import { Juturna } from 'juturna-browser';
+
+const jt = await Juturna.create({ base: '/juturna/' });
+```
+
+[Use it in a Vite app](docs/guide.md#use-it-in-a-vite-app) lists the settings a
+builder needs, and [examples/vite](examples/vite) is a working app.
+
+## Quick start from a checkout
 
 ```
 git clone https://github.com/meetecho/juturna-browser
@@ -55,8 +78,7 @@ need the files fetched by `build/vendor.py` and their `--plugins` folders, as
 [Run them locally](docs/demos.md#run-them-locally) shows. To write a page of
 your own, follow the [Guide](docs/guide.md).
 
-juturna-browser is not published on npm: a page uses `src/` and the `dist/`
-bundle from a checkout.
+A page of the checkout imports `src/` and uses the `dist/` bundle.
 
 ## When it fits
 
@@ -79,8 +101,9 @@ WebAssembly builds of native libraries are the way to run models.
 - A page served with the `Cross-Origin-Opener-Policy: same-origin` and
   `Cross-Origin-Embedder-Policy: require-corp` headers, without which
   `SharedArrayBuffer` does not exist. `serve.py` sends them.
-- Juturna 3.0.0 or later (it has the browser transport), and the nodes
-  `BrowserInput` and `BrowserOutput` of juturna-nodes 0.1.1 or later.
+- Juturna 3.0.0 (it has the browser transport), and the nodes `BrowserInput`
+  and `BrowserOutput` of juturna-nodes 0.1.1: the worker code uses Juturna
+  internals, so `juturna-browser build` fetches exactly these releases.
 
 ## Documentation
 
