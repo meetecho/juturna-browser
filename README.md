@@ -1,5 +1,7 @@
 # juturna-browser
 
+[![npm](https://img.shields.io/npm/v/juturna-browser)](https://www.npmjs.com/package/juturna-browser)
+
 juturna-browser runs a [Juturna](https://github.com/meetecho/juturna) pipeline
 inside a browser tab. It uses the same JSON configuration format and node
 model as a server, but with nodes written for Pyodide, not the ones a server
@@ -11,32 +13,6 @@ camera are processed where they are captured: no server receives them.
 
 Try the [hosted demos](https://meetecho.github.io/juturna/browser/demos.html),
 or read the [Juturna documentation](https://meetecho.github.io/juturna/).
-
-```js
-import { Juturna } from './src/juturna.js';
-
-const config = { pipeline: { name: 'demo', id: 'demo-1', folder: '/tmp/juturna/demo',
-  transport: 'browser',
-  nodes: [{ name: 'in',  type: 'BrowserInput',  configuration: {} },
-          { name: 'out', type: 'BrowserOutput', configuration: {} }],
-  links: [{ from: 'in', to: 'out' }] } };
-
-const jt   = await Juturna.create();
-const pipe = await jt.pipeline(config);
-pipe.output('out').on('message', ({ kind, payload, meta }) => render(payload));
-pipe.onError((error) => console.error(error));
-const input = pipe.input('in');
-
-await pipe.start();
-input.feed({ kind: 'audio', payload: { audio: float32Chunk, sampling_rate: 16000 } });
-await pipe.stop();
-await pipe.destroy();
-jt.terminate();
-```
-
-`BrowserInput` and `BrowserOutput` are the two ends of the pipeline; the nodes
-that do the work go between them, each in the Worker its `"worker"` key names.
-Capturing the data (microphone, files, canvas) is up to the page.
 
 ## Install
 
@@ -58,8 +34,30 @@ the site):
 ```js
 import { Juturna } from '/juturna/src/juturna.js';
 
-const jt = await Juturna.create();
+const config = { pipeline: { name: 'demo', id: 'demo-1', folder: '/tmp/juturna/demo',
+  transport: 'browser',
+  nodes: [{ name: 'in',  type: 'BrowserInput',  configuration: {} },
+          { name: 'out', type: 'BrowserOutput', configuration: {} }],
+  links: [{ from: 'in', to: 'out' }] } };
+
+const jt   = await Juturna.create();
+const pipe = await jt.pipeline(config);
+// render: whatever the page does with a result
+pipe.output('out').on('message', ({ kind, payload, meta }) => render(payload));
+pipe.onError((error) => console.error(error));
+const input = pipe.input('in');
+
+await pipe.start();
+// float32Chunk: a Float32Array of 16 kHz samples, from the microphone or a file
+input.feed({ kind: 'audio', payload: { audio: float32Chunk, sampling_rate: 16000 } });
+await pipe.stop();
+await pipe.destroy();
+jt.terminate();
 ```
+
+`BrowserInput` and `BrowserOutput` are the two ends of the pipeline; the nodes
+that do the work go between them, each in the Worker its `"worker"` key names.
+Capturing the data (microphone, files, canvas) is up to the page.
 
 [Use the npm package](docs/guide.md#use-the-npm-package) covers the headers and
 the builders, and [examples/standalone](examples/standalone) is a working page.
@@ -68,8 +66,8 @@ the builders, and [examples/standalone](examples/standalone) is a working page.
 
 ```
 git clone https://github.com/meetecho/juturna-browser
-git clone https://github.com/meetecho/juturna
-git clone https://github.com/meetecho/juturna_nodes
+git clone --branch juturna-v3.0.0 https://github.com/meetecho/juturna
+git clone --branch juturna-nodes-v0.1.1 https://github.com/meetecho/juturna_nodes
 cd juturna-browser
 python3 build/build.py --juturna ../juturna --nodes ../juturna_nodes
 python3 serve.py 8765
@@ -98,7 +96,9 @@ WebAssembly builds of native libraries are the way to run models.
 
 ## Requirements
 
-- Chrome 137 or later (JSPI), tested on 157.
+- Chrome 137 or later (JSPI), tested on 157. Other browsers are not
+  supported.
+- python3 3.12 or later with pip, to run `juturna-browser build`.
 - Pyodide, loaded from the jsDelivr CDN by the Worker: v314.0.6 by default,
   another release with the `pyodide` option of `Juturna.create()`.
 - A page served with the `Cross-Origin-Opener-Policy: same-origin` and
@@ -106,7 +106,8 @@ WebAssembly builds of native libraries are the way to run models.
   `SharedArrayBuffer` does not exist. `serve.py` sends them.
 - Juturna 3.0.0 (it has the browser transport), and the nodes `BrowserInput`
   and `BrowserOutput` of juturna-nodes 0.1.1: the worker code uses Juturna
-  internals, so `juturna-browser build` fetches exactly these releases.
+  internals, so `juturna-browser build` fetches exactly these releases unless
+  `--juturna` and `--nodes` point to checkouts.
 
 ## Documentation
 
