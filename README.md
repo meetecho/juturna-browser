@@ -48,9 +48,8 @@ npx juturna-browser build --out public/juturna
 The package holds the JavaScript runtime and the build scripts, not a bundle:
 `juturna-browser build` writes the wheel of Juturna 3.0.0 and the browser nodes
 of juturna-nodes 0.1.1, both downloaded from PyPI, plus the nodes of your own
-`--plugins` folders. It needs python3 3.11 or later with pip; Juturna does not
-have to be installed (only `juturna-browser check` needs it, with Python 3.12 or
-later). The page then passes the folder it is served at:
+`--plugins` folders. It needs python3 3.12 or later with pip; Juturna does not
+have to be installed (only `juturna-browser check` needs it). The page then passes the folder it is served at:
 
 ```js
 import { Juturna } from 'juturna-browser';

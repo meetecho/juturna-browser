@@ -5,7 +5,7 @@ juturna-browser npm package as an app would. The package is the tarball of
 `npm pack` of this repository, not a link to it, so the app sees only the
 published files.
 
-Needs Node, python3 3.11 or later with pip, and Chrome 137 or later.
+Needs Node, python3 3.12 or later with pip, and Chrome 137 or later.
 
 ```
 cd examples/vite

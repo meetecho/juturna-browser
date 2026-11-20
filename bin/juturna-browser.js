@@ -18,18 +18,17 @@ if (!SCRIPTS[command]) {
 // those folders are the package's own, so the folders must be given
 if (command === 'check' && args.length === 0) {
   console.error('usage: juturna-browser check FOLDER [FOLDER ...]\n'
-    + '  imports the nodes under each FOLDER with CPython: needs Python 3.12 or later, '
-    + 'with juturna and numpy installed');
+    + '  imports the nodes under each FOLDER with CPython: needs juturna and numpy installed');
   process.exit(2);
 }
 
 // build downloads the wheels with pip; vendor needs only the standard library,
 // check reports a missing juturna by itself
 const needsPip = command === 'build';
-const probe = spawnSync('python3', ['-c', 'import sys, importlib.util; sys.exit(sys.version_info < (3, 11)'
+const probe = spawnSync('python3', ['-c', 'import sys, importlib.util; sys.exit(sys.version_info < (3, 12)'
   + (needsPip ? ' or importlib.util.find_spec("pip") is None)' : ')')]);
 if (probe.status !== 0) {
-  console.error(`juturna-browser needs python3 3.11 or later${needsPip ? ', with pip,' : ''} on the PATH: `
+  console.error(`juturna-browser needs python3 3.12 or later${needsPip ? ', with pip,' : ''} on the PATH: `
     + 'install it from https://www.python.org/downloads/ or with your package manager (python3 and python3-pip)');
   process.exit(1);
 }

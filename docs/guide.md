@@ -65,8 +65,8 @@ the microphone, plus an image round trip. Accept the microphone permission.
 ## Use it in a Vite app
 
 Installed from npm, the package gives the API and a `juturna-browser` command
-that runs the scripts of `build/` with python3: 3.11 or later for `build` (with
-pip) and `vendor`, 3.12 or later for `check`. Build the bundle, and fetch the
+that runs the scripts of `build/` with python3 3.12 or later (with pip for
+`build`). Build the bundle, and fetch the
 third-party files of your nodes if they declare any, into `public/`:
 
 ```
@@ -112,7 +112,8 @@ same two headers, and the files the page loads from elsewhere must be served
 from `public/` (`public/vendor` above), not from another host.
 `juturna-browser check ./nodes` imports your nodes with CPython, as
 [Write a browser node](write-a-node.md) explains; unlike `build`, it needs
-Python 3.12 or later with juturna and numpy installed. [examples/vite](../examples/vite) is a working app.
+juturna and numpy installed, and a CPython of the same minor version as Pyodide
+gives it the most faithful result. [examples/vite](../examples/vite) is a working app.
 
 ## Feed audio from the microphone
 
