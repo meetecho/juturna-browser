@@ -14,6 +14,7 @@ It checks the nodes under each FOLDER (default: ``examples`` and
 a ``config.toml`` and a ``<name>.py``.
 """
 
+import argparse
 import importlib.util
 import os
 import pathlib
@@ -28,6 +29,16 @@ from build import _register
 
 def main():
     """Import every node and report the ones that fail."""
+    parser = argparse.ArgumentParser(description=__doc__.strip().split('\n')[0])
+    parser.add_argument(
+        'folders',
+        nargs='*',
+        type=pathlib.Path,
+        metavar='FOLDER',
+        help='folder with nodes (default: examples and test/plugins)',
+    )
+    args = parser.parse_args()
+
     try:
         import juturna  # noqa: F401
     except ImportError:
@@ -37,7 +48,7 @@ def main():
             f'pip install juturna=={JUTURNA_VERSION} numpy'
         )
 
-    folders = [pathlib.Path(arg) for arg in sys.argv[1:]] or [
+    folders = args.folders or [
         ROOT / 'examples',
         ROOT / 'test' / 'plugins',
     ]
