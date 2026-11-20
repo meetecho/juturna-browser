@@ -129,8 +129,8 @@ check that the node module imports outside the browser, as
 python build/check_nodes.py
 ```
 
-`check_nodes.py` covers `examples/` and `test/plugins`; a node elsewhere is
-checked by `python -m juturna validate` on a configuration that uses it.
+`check_nodes.py` covers `examples/` and `test/plugins`; for a node elsewhere,
+pass its folder (`python build/check_nodes.py path/to/nodes`).
 
 ## 5. Try it in a page
 

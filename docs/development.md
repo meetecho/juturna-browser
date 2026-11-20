@@ -8,9 +8,11 @@ src/         juturna.js (the API), juturna-worker.js (the Worker side),
              model-cache.js (the files of the nodes kept between visits)
 build/       build.py (the bundle), vendor.py (the third-party files nodes declare),
              check_nodes.py (imports every node with CPython)
+bin/         juturna-browser.js (the npm command that runs build/)
 examples/    microphone.html, video-blur/, noise-suppression/, live-translation/,
              live-translation-kroko/, live-transcription-kroko/, telemetry.js (the
-             `?telemetry` panel), plugins/ (nodes shared by more than one example)
+             `?telemetry` panel), plugins/ (nodes shared by more than one example),
+             standalone/ (the folder the npm package builds, as a static page)
 test/        browser test pages, and test/plugins/ (nodes used by them)
 serve.py     local server with the isolation headers
 docs/        this documentation
@@ -25,12 +27,25 @@ python3 build/build.py --juturna /path/to/juturna --nodes /path/to/juturna_nodes
 writes `dist/`: a wheel of Juturna built from the checkout as it is, uncommitted
 changes included, `wheel.txt` with its name, and `plugins.zip` with the browser
 nodes `BrowserInput` and `BrowserOutput` (from the juturna-nodes checkout). Run it again after any change in
-the checkout.
+the checkout. Only `juturna-*.whl`, `wheel.txt` and `plugins.zip` are
+replaced: the rest of the output folder, `dist/` included, is left as it is.
 
-Options: `--plugins DIR` (repeatable) adds the nodes under `DIR`: each is a folder
+Without `--juturna`, the wheel is downloaded from PyPI instead, at the version
+pinned by `JUTURNA_VERSION` in `build/build.py`; without `--nodes`, the browser
+nodes come from the PyPI wheel of juturna-nodes at `NODES_VERSION`. pip uses
+`https://pypi.org/simple` only, and each wheel must match the sha256 kept next
+to its version (`JUTURNA_SHA256`, `NODES_SHA256`), or the build stops. Those
+constants follow the Juturna internals `PY_RUNTIME` uses: change them together
+with `src/`, taking the new sha256 from the release page on PyPI. The build
+prints where the wheel and the nodes come from (PyPI or the checkout path).
+
+Options: `--out DIR` writes a standalone folder instead of `dist/`: `DIR/src`
+with the modules of `src/` and `DIR/dist` with the bundle (only the wheel, `wheel.txt` and `plugins.zip` are
+replaced). `--plugins DIR` (repeatable) adds the nodes under `DIR`: each is a folder
 `_<name>` with `<name>.py` and `config.toml`. They are used in a pipeline as
 `extensions.nodes.<Class>` ([Write a browser node](write-a-node.md) walks
-through one), and `--test-plugins` adds the nodes of `test/plugins`.
+through one), and `--test-plugins` adds the nodes of `test/plugins` (checkout
+only).
 `JUTURNA_REPO` can replace `--juturna`, `JUTURNA_NODES_REPO` `--nodes`. The bundle of the demo is:
 
 ```
@@ -47,6 +62,14 @@ python3 build/build.py --juturna <checkout> --nodes <nodes-checkout> \
     --plugins examples/live-translation/plugins \
     --plugins examples/plugins
 ```
+
+The npm package ships `src/`, `build/*.py` and `bin/juturna-browser.js`, the
+command behind `npx juturna-browser build|vendor|check`: it runs the matching
+script of `build/` with python3, with the same arguments. `check` takes the
+folders to check; the default, `examples/` and `test/plugins`, applies only to
+`build/check_nodes.py` run in a checkout, and the command asks for the folders.
+`release-please.yml` publishes the package to npm when it creates a release,
+with npm trusted publishing (no token in the repository).
 
 ## Third-party files of the nodes
 
@@ -143,10 +166,10 @@ Serve the pages with `python3 serve.py 8765` (see the [guide](guide.md)). A back
 regular timing take it from a Worker. `supervisor`, `restart` and `lifecycle`
 expect a loss to be noticed within seconds: keep their tab in the foreground.
 
-One check runs outside the browser: `build/check_nodes.py` imports every node
-of `examples/` and `test/plugins` with CPython, as `python -m juturna validate`
-does, and as a pytest of a node would. Run it with a Python that has juturna
-installed:
+One check runs outside the browser: `build/check_nodes.py [FOLDER ...]`
+imports every node under each folder (default: `examples/` and `test/plugins`)
+with CPython, as `python -m juturna validate` does, and as a pytest of a node
+would. Run it with a Python (3.12 or later) that has juturna installed:
 
 ```
 python build/check_nodes.py
@@ -154,3 +177,8 @@ python build/check_nodes.py
 
 It fails on a node that imports `js` or `pyodide` at the top of its module:
 import them inside the functions that use them.
+
+`examples/standalone` checks the npm package: it installs the tarball of
+`npm pack`, builds the standalone folder from PyPI and runs a `BrowserInput` →
+`BrowserOutput` round trip that writes `window.__result` like the test pages.
+Its README has the steps.

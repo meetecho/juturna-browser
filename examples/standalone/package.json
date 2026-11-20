@@ -1,0 +1,7 @@
+{
+  "name": "juturna-browser-standalone-example",
+  "private": true,
+  "scripts": {
+    "setup": "rm -f juturna-browser-*.tgz && npm pack ../.. && npm install --no-save ./juturna-browser-*.tgz && juturna-browser build --out juturna"
+  }
+}

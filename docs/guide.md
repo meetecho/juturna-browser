@@ -62,6 +62,61 @@ installs Juturna in every Worker.
 `examples/microphone.html` is the same pipeline fed by
 the microphone, plus an image round trip. Accept the microphone permission.
 
+## Use the npm package
+
+Installed from npm, the package gives a `juturna-browser` command that runs the
+scripts of `build/` with python3 3.12 or later (with pip for `build`). Build a
+standalone folder with the whole runtime, and fetch the third-party files of
+your nodes if they declare any, into the folder your server serves:
+
+```
+npm install juturna-browser
+npx juturna-browser build --plugins ./nodes --out static/juturna
+npx juturna-browser vendor ./nodes --dest static/vendor
+```
+
+`static/juturna` gets `src/`, the JavaScript of the package, and `dist/`, the
+bundle. Without `--juturna` and `--nodes`, `build` downloads the wheels of
+Juturna 3.0.0 and juturna-nodes 0.1.1 from PyPI: the versions the JavaScript of
+the package is written for. Run it again after changing a node or upgrading the
+package. Only the files the build writes are replaced (the modules in `src/`; the
+wheel, `wheel.txt` and `plugins.zip` in `dist/`); the rest of the folder is
+left as it is. Outside a checkout, give `vendor` a `--dest`: its default,
+`vendor/` of the package, would be inside `node_modules`. The nodes then load
+those files from the URLs their configuration gives.
+
+Serve the folder as static files and import it from the page. With `static/`
+served at the root of the site:
+
+```js
+import { Juturna } from '/juturna/src/juturna.js';
+
+const jt = await Juturna.create();
+```
+
+`src/` finds the bundle in `../dist/` by itself, so the page passes no `base`.
+Every server that serves the page, production included, must send the two
+headers that make `SharedArrayBuffer` available:
+
+```
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Embedder-Policy: require-corp
+```
+
+and the files the page loads from elsewhere must be served from the same
+site (`static/vendor` above), not from another host.
+
+With a bundler, copy the folder among the static assets the bundler serves and
+publishes as they are, and import `src/juturna.js` at run time by its URL: keep
+it out of the bundle, since the Worker and the bundle are found relative to
+`src/juturna.js`.
+
+`juturna-browser check ./nodes` imports your nodes with CPython, as
+[Write a browser node](write-a-node.md) explains; unlike `build`, it needs
+juturna and numpy installed, and a CPython of the same minor version as Pyodide
+gives it the most faithful result. [examples/standalone](../examples/standalone)
+is a working page.
+
 ## Feed audio from the microphone
 
 The page captures the audio; `examples/microphone.html` is a complete example.

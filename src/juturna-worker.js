@@ -87,7 +87,7 @@ const COMMANDS = {
   async init({ base, pyodide: source }) {
     // a version number (CDN) or the URL of a folder served by the page
     const folder = /^v\d/.test(source) ? `https://cdn.jsdelivr.net/pyodide/${source}/full/` : source.replace(/\/?$/, '/');
-    const { loadPyodide } = await import(`${folder}pyodide.mjs`);
+    const { loadPyodide } = await import(/* @vite-ignore */ `${folder}pyodide.mjs`);
     // the wheel and the plugins come in while Pyodide loads
     const assets = fetchAssets(new URL(base));
     assets.catch(() => {});                       // reported when bootstrapJuturna awaits it
