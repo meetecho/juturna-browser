@@ -42,23 +42,27 @@ Capturing the data (microphone, files, canvas) is up to the page.
 
 ```
 npm install juturna-browser
-npx juturna-browser build --out public/juturna
+npx juturna-browser build --out static/juturna
 ```
 
 The package holds the JavaScript runtime and the build scripts, not a bundle:
-`juturna-browser build` writes the wheel of Juturna 3.0.0 and the browser nodes
-of juturna-nodes 0.1.1, both downloaded from PyPI, plus the nodes of your own
-`--plugins` folders. It needs python3 3.12 or later with pip; Juturna does not
-have to be installed (only `juturna-browser check` needs it). The page then passes the folder it is served at:
+`juturna-browser build --out` writes a standalone folder with the whole
+runtime: `src/` with the JavaScript of the package and `dist/` with the wheel
+of Juturna 3.0.0 and the browser nodes of juturna-nodes 0.1.1, both downloaded
+from PyPI, plus the nodes of your own `--plugins` folders. It needs python3
+3.12 or later with pip; Juturna does not have to be installed (only
+`juturna-browser check` needs it). Serve the folder as static files, with the
+isolation headers, and import it from the page (here `static/` is the root of
+the site):
 
 ```js
-import { Juturna } from 'juturna-browser';
+import { Juturna } from '/juturna/src/juturna.js';
 
-const jt = await Juturna.create({ base: '/juturna/' });
+const jt = await Juturna.create();
 ```
 
-[Use it in a Vite app](docs/guide.md#use-it-in-a-vite-app) lists the settings a
-builder needs, and [examples/vite](examples/vite) is a working app.
+[Use the npm package](docs/guide.md#use-the-npm-package) covers the headers and
+the builders, and [examples/standalone](examples/standalone) is a working page.
 
 ## Quick start from a checkout
 

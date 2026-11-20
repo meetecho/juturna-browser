@@ -12,7 +12,7 @@ bin/         juturna-browser.js (the npm command that runs build/)
 examples/    microphone.html, video-blur/, noise-suppression/, live-translation/,
              live-translation-kroko/, live-transcription-kroko/, telemetry.js (the
              `?telemetry` panel), plugins/ (nodes shared by more than one example),
-             vite/ (the npm package in a Vite app)
+             standalone/ (the folder the npm package builds, as a static page)
 test/        browser test pages, and test/plugins/ (nodes used by them)
 serve.py     local server with the isolation headers
 docs/        this documentation
@@ -39,8 +39,9 @@ constants follow the Juturna internals `PY_RUNTIME` uses: change them together
 with `src/`, taking the new sha256 from the release page on PyPI. The build
 prints where the wheel and the nodes come from (PyPI or the checkout path).
 
-Options: `--out DIR` writes the bundle there instead of `dist/` (only the
-wheel, `wheel.txt` and `plugins.zip` are replaced). `--plugins DIR` (repeatable) adds the nodes under `DIR`: each is a folder
+Options: `--out DIR` writes a standalone folder instead of `dist/`: `DIR/src`
+with the modules of `src/` and `DIR/dist` with the bundle (only the wheel, `wheel.txt` and `plugins.zip` are
+replaced). `--plugins DIR` (repeatable) adds the nodes under `DIR`: each is a folder
 `_<name>` with `<name>.py` and `config.toml`. They are used in a pipeline as
 `extensions.nodes.<Class>` ([Write a browser node](write-a-node.md) walks
 through one), and `--test-plugins` adds the nodes of `test/plugins` (checkout
@@ -177,7 +178,7 @@ python build/check_nodes.py
 It fails on a node that imports `js` or `pyodide` at the top of its module:
 import them inside the functions that use them.
 
-`examples/vite` checks the npm package in a Vite app: it installs the tarball
-of `npm pack`, builds the bundle from PyPI and runs a `BrowserInput` →
+`examples/standalone` checks the npm package: it installs the tarball of
+`npm pack`, builds the standalone folder from PyPI and runs a `BrowserInput` →
 `BrowserOutput` round trip that writes `window.__result` like the test pages.
 Its README has the steps.

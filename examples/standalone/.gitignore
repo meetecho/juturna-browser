@@ -1,6 +1,5 @@
 node_modules/
-dist/
-public/juturna/
+juturna/
 *.tgz
 # the dependency is a tarball packed from the repo: its integrity changes at every pack
 package-lock.json

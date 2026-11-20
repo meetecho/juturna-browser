@@ -3,8 +3,7 @@ import globals from 'globals';
 import stylistic from '@stylistic/eslint-plugin';
 
 export default [
-  { ignores: ['bench/', 'dist/', 'vendor/', 'juturna-web-demo/', 'node_modules/', 'examples/vite/dist/',
-    'examples/vite/public/juturna/'] },
+  { ignores: ['bench/', 'dist/', 'vendor/', 'juturna-web-demo/', 'node_modules/', 'examples/standalone/juturna/'] },
   js.configs.recommended,
   {
     languageOptions: {

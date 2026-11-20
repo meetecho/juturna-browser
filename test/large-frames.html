@@ -9,7 +9,7 @@
 import { Juturna } from '../src/juturna.js';
 
 window.__result = null;
-const query = new URLSearchParams(location.search);   // ?dist=../dist_x/ runs another bundle
+const query = new URLSearchParams(location.search);   // ?dist=../dist_x/dist/ runs another bundle
 const W = 1280, H = 720;
 const checks = {}, timings = {};
 const check = (n, ok, d) => { checks[n] = ok ? 'ok' : 'FAIL' + (d !== undefined ? ': ' + JSON.stringify(d) : ''); };

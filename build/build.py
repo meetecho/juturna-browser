@@ -12,7 +12,10 @@ Usage:
 to ``JUTURNA_NODES_REPO``. Without a checkout, the wheel of the pinned release
 (``JUTURNA_VERSION``, ``NODES_VERSION``) is downloaded from PyPI with pip.
 
-Output, in ``--out`` (default ``dist/``):
+Output, in ``dist/`` of this repository or, with ``--out DIR``, in
+``DIR/dist/`` next to ``DIR/src/`` with the JavaScript of ``src/``: a folder
+with the whole runtime, to serve as static files
+(``import { Juturna } from '<DIR url>/src/juturna.js'``):
     juturna-<version>-py3-none-any.whl   the library, built as it is in the
                                          checkout (uncommitted changes included)
                                          or downloaded from PyPI
@@ -33,6 +36,7 @@ import hashlib
 import os
 import pathlib
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -40,6 +44,7 @@ import zipfile
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 DIST = ROOT / 'dist'
+SRC = ROOT / 'src'
 
 # PY_RUNTIME uses Juturna internals: the JS of this package and the wheel must
 # match, so the releases fetched from PyPI are fixed here, with the sha256 of
@@ -233,8 +238,15 @@ def _add(
             zf.write(path, f'{prefix}/{path.relative_to(base)}')
 
 
+def copy_runtime(target: pathlib.Path):
+    """Copy the modules of src/ into target."""
+    target.mkdir(parents=True, exist_ok=True)
+    for path in SRC.glob('*.js'):
+        shutil.copyfile(path, target / path.name)
+
+
 def main():
-    """Build dist/ from the command line arguments."""
+    """Build the bundle from the command line arguments."""
     parser = argparse.ArgumentParser(description=__doc__.strip().split('\n')[0])
     parser.add_argument(
         '--juturna',
@@ -264,8 +276,9 @@ def main():
     parser.add_argument(
         '--out',
         type=pathlib.Path,
-        default=DIST,
-        help='output folder (default: dist/ of this repository)',
+        help='standalone output folder: DIR/src with the JavaScript, DIR/dist '
+        'with the bundle (default: only the bundle, in dist/ of this '
+        'repository)',
     )
     args = parser.parse_args()
 
@@ -275,9 +288,19 @@ def main():
     if args.nodes and not (args.nodes / 'src/juturna/nodes').is_dir():
         parser.error(f'not a juturna-nodes checkout: {args.nodes}')
 
-    # out may be a folder of the page (public/...): only our files are removed,
-    # and an old wheel must go or the glob below could pick it; wheel.txt goes
-    # too, so a failed build does not leave it naming a missing wheel
+    # src/ next to dist/ keeps the default base of juturna.js (../dist/)
+    site = args.out
+    if site:
+        if (site / 'src').resolve() == SRC:
+            parser.error(f'--out would overwrite {SRC}: choose another folder')
+
+        args.out = site / 'dist'
+    else:
+        args.out = DIST
+
+    # out may be a folder of the site: only our files are removed, and an old
+    # wheel must go or the glob below could pick it; wheel.txt goes too, so a
+    # failed build does not leave it naming a missing wheel
     args.out.mkdir(parents=True, exist_ok=True)
     for old in [*args.out.glob('juturna-*.whl'), args.out / 'wheel.txt']:
         old.unlink(missing_ok=True)
@@ -305,6 +328,10 @@ def main():
             package, args.test_plugins, args.plugins, args.out
         )
     print(plugins.name)
+
+    # last, so a failed build does not leave new modules next to an old bundle
+    if site:
+        copy_runtime(site / 'src')
 
 
 if __name__ == '__main__':
