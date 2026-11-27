@@ -42,8 +42,7 @@ A node writes to a node of another Worker as to any other: Juturna hides the
 queue. Only the inbound queue of a node with an upstream in a different Worker
 is a ring on a `SharedArrayBuffer`; several Workers can write to the same
 ring. Every other queue is local to its Worker and keeps the messages as
-Python objects, which saves a serialization and a copy on each side, about
-1 ms for a 640×480 RGBA frame.
+Python objects, which saves a serialization and a copy on each side.
 
 A ring slot has a fixed size, `max_payload_bytes` (2,000,000 bytes by
 default): a message that does not fit fails with an error that names the key.
@@ -83,32 +82,8 @@ so only for a slot that stays claimed and unfilled for 250 ms, much longer
 than a write takes (`src/ring.js`). The rest of what happens when a Worker is
 lost is in the [guide](guide.md#lost-workers).
 
-## What each step costs
+## Loading a demo
 
-Measured on a 12-core desktop, Chrome 157, at commit `db0897a` (2026-11-14), median of three runs:
-
-| Step | Cost | Conditions |
-|---|---|---|
-| `Juturna.create()` | about 3 s with one Worker, 3.6 s with three | Pyodide and Juturna in every Worker, in parallel; about 0.4 s more on a first visit, when Pyodide is downloaded |
-| A Worker rebuilt after a loss | about 3 s, plus the nodes' `warmup()` | |
-| A 640×480 RGBA frame from one Worker to another | about 1.5 ms | half of a 2.9 ms round trip |
-| One more node in a pipeline | about 0.5 ms of delay | a node that passes a 640×480 frame on, in the same Worker |
-| A node that burns the CPU for 200 ms per message | 107 ms median delay for a probe in the same Worker, 2 ms with the node in another | a probe crossing the pipeline |
-| Loading Whisper and Opus, each in its Worker | about 2.7 s | `jt.pipeline()` of the live translation demo |
-
-### Loading a demo
-
-The time of `jt.pipeline()`, which loads the models, and the files it needs.
-The server is local, so the network costs nothing here: on a first visit add
-the time to download the files on your link (270 MB at 100 Mbit/s is about
-22 s). On a later visit the files come from the browser's cache: each costs a
-request answered `304`.
-
-| Demo | Files on a first visit | `jt.pipeline()`, first visit | `jt.pipeline()`, later visit | `prefetch()` of the files, first visit |
-|---|---|---|---|---|
-| Noise suppression | 27 MB | 0.37 s | 0.35 s | 0.05 s |
-| Background blur | 12 MB | 0.29 s | 0.27 s | 0.03 s |
-| Live translation (Whisper base, Opus en-it), with `?models=vendor` | 270 MB | 2.7 s | 2.7 s | 0.34 s |
-| Kroko transcription | 85 MB | 3.2 s | 2.9 s | 0.15 s |
-
-The numbers of each demo are on the [demos page](demos.md).
+`jt.pipeline()` loads the models of the nodes. On a first visit the browser
+downloads their files; on a later visit they come from its cache, and each
+costs a request answered `304`.

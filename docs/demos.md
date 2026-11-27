@@ -40,16 +40,6 @@ when the pipeline falls behind, so the delay does not build up (`?inflight=`
 sets how many frames may be in flight, three by default). The canvas version
 looks the same and blurs on the page instead of in the pipeline.
 
-Measured on a 12-core desktop, Chrome 157, at commit `db0897a` (2026-11-14). The synthetic rows are the median of three runs; the webcam rows are one session, medians of the last 60 frames:
-
-| Run | Frames | Median delay | Steps |
-|---|---|---|---|
-| `test/video-blur.html?fps=24&inflight=3`, synthetic 640×480 frames | 24.7 fps, 2 of 73 frames dropped | 51 ms | 17 ms segmentation, 21 ms blur |
-| Same, at 30 fps | 30 fps, 4 of 71 frames dropped | 54 ms | 19 ms segmentation, 23 ms blur |
-| Webcam at 24 fps | 24.1 fps, 8 of 2186 frames dropped | 70 ms | 24 ms segmentation, 26 ms blur |
-| `test/video-blur-canvas.html?fps=24&inflight=3`, synthetic frames | 0 dropped (2 with `video-blur.html`) | 33 ms (51 ms with `video-blur.html`) | 8 ms of canvas compositing instead of 21 ms of numpy blur |
-| `canvas.html`, webcam at 24 fps | 23.8 fps, 0 frames dropped | 26 ms | 16 ms segmentation, 2.9 ms of canvas compositing |
-
 ## Noise suppression
 
 <a class="try-it" href="../examples/noise-suppression/index.html">▶ Try it</a>
@@ -75,11 +65,6 @@ into Italian, Spanish, Chinese or German, with the Whisper and OPUS-MT models.
   the line being typed updates as it changes (500 ms debounce by default,
   `?debounce=`); Enter commits it to the history and starts a new line.
 
-Loading the two models takes about 2.7 s. On the JFK sample (11 s, fed in real
-time in 1 s chunks), a 4 s window takes 1.8 s to transcribe and 0.4 s to
-translate: its translation arrives 2.2 s after the chunk that closed the
-window.
-
 ## Live transcription and translation with Kroko
 
 <a class="try-it" href="../examples/live-transcription-kroko/index.html">▶ Try transcription</a>
@@ -90,10 +75,6 @@ window.
   arrives: each 100 ms chunk updates the current line, and the line is final
   when the model detects the end of the utterance.
 - Translation: the same transcription, with each final line translated.
-
-On the JFK sample, fed in real time in 100 ms chunks, each chunk takes under
-1 ms to transcribe, and a final line arrives about 140 ms after the chunk that
-ends the utterance. Loading the model takes about 3 s.
 
 On the translation page `?maxThreads=` sets the threads of the translation;
 the transcription is single-threaded.
@@ -122,8 +103,7 @@ script described in the README of `transcriber_kroko_wasm`.
 A demo needs only its own nodes: `build/vendor.py` and `--plugins` take the
 folders of that demo alone.
 
-`index.html`, at the root of the repository, links every demo and shows the
-measured numbers.
+`index.html`, at the root of the repository, links every demo.
 
 ## Models and licenses
 

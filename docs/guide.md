@@ -187,10 +187,7 @@ nodes: [
 ```
 
 A Worker is one thread with one Pyodide. A node that keeps the CPU busy holds
-up every other node of its Worker, so it belongs in a Worker of its own. In a
-test, a probe crossing the pipeline had a median delay of 107 ms with a node
-burning the CPU for 200 ms per message in the same Worker, and 2 ms with the
-node in another. Each Worker costs memory (a Pyodide instance) and its start,
+up every other node of its Worker, so it belongs in a Worker of its own. Each Worker costs memory (a Pyodide instance) and its start,
 which happens in parallel with the others.
 
 The demos give each heavy node a Worker of its own: `person_mask` and
@@ -245,8 +242,8 @@ pipe.onWorkerRestarted(({ worker, attempt }) => { input = pipe.input('in'); /* n
 
 A restart builds the nodes of the Worker again from the same configuration,
 connects its queues to the rest of the pipeline in both directions, and starts
-it. It takes what starting a Worker takes: about 3 seconds for Pyodide, plus
-whatever the nodes need in `warmup()`. The Worker is not pinged during that time:
+it. It takes what starting a Worker takes: loading Pyodide, plus whatever the
+nodes need in `warmup()`. The Worker is not pinged during that time:
 it is supervised again once its nodes run. What bounds the restart is
 `restart.timeoutMs` (30 seconds): a Worker that is not back by then is lost
 again, which uses up an attempt. A node that loads a large model may need more.

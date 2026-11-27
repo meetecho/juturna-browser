@@ -33,35 +33,6 @@
       <code>pipe.output().on('message')</code>. Real models (Whisper, OPUS-MT,
       a portrait segmenter, DeepFilterNet3), each its own Pyodide Worker so a
       CPU-heavy node never stalls the others.</p>
-    <div class="grid">
-      <div class="stat"><div class="num">2.8s</div><div class="lbl">Worker start</div>
-        <div class="ctx">Pyodide + Juturna, one Worker</div></div>
-      <div class="stat"><div class="num">0.35ms</div><div class="lbl">message through a queue</div>
-        <div class="ctx">put + get, 6.4KB</div></div>
-      <div class="stat"><div class="num">31ms</div><div class="lbl">720p frame, in > out</div>
-        <div class="ctx">full RGBA round trip</div></div>
-      <div class="stat"><div class="num">~1.6s</div><div class="lbl">lost-Worker detection</div>
-        <div class="ctx">200ms ping, 1.5s timeout</div></div>
-    </div>
-  </div>
-</section>
-
-<section id="video-blur-numbers">
-  <div class="wrap">
-    <h2>Compositing on canvas beats numpy in a Worker</h2>
-    <p class="section-lede">Same segmentation model, same synthetic 640×480 frames at
-      24fps. Only the background blur/compositing step moved - from a
-      <code>background_blur</code> node (numpy, its own Worker) to the page's own canvas
-      (<code>filter: blur()</code> + <code>drawImage</code> respecting the mask's
-      per-pixel alpha for the soft edge).</p>
-    <table class="compare">
-      <tr><th></th><th>numpy Worker</th><th>canvas</th></tr>
-      <tr><td>frames dropped</td><td>2 / 75</td><td class="win">0 / 75</td></tr>
-      <tr><td>median latency</td><td>59.7ms</td><td class="win">39.7ms</td></tr>
-      <tr><td>p95 latency</td><td>109.2ms</td><td class="win">90.1ms</td></tr>
-      <tr><td>blur / composite cost</td><td>22.2ms</td><td class="win">8.8ms</td></tr>
-      <tr><td>Workers needed</td><td>3 (main, ml, cpu)</td><td class="win">2 (main, ml)</td></tr>
-    </table>
   </div>
 </section>
 
@@ -97,7 +68,7 @@
         <div><span class="tag">person_mask</span><span class="tag">canvas</span></div>
         <h3>Background blur</h3>
         <p>Portrait segmentation with onnxruntime-web, background blur composited on
-          canvas. 24fps, 40ms median latency, zero frames dropped.</p>
+          canvas.</p>
         <div class="links">
           <a href="examples/video-blur/canvas.html">Open (canvas) ></a>
           <a href="examples/video-blur/index.html">Open (numpy) ></a>

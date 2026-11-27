@@ -30,7 +30,7 @@ The node loads two things at run time and does not ship them:
 - **A segmentation model** with the interface above. The one in `assets.toml` is
   [MediaPipe Selfie Segmentation converted to ONNX](https://huggingface.co/onnx-community/mediapipe_selfie_segmentation-web)
   (Apache-2.0), at a fixed commit. A model that needs another input, or a heavier
-  one, has its own cost: MODNet, for instance, took 127 ms at 256×256.
+  one, has its own cost.
 
 `assets.toml` lists them with their URLs and checksums, and
 `python3 build/vendor.py <plugins folder or pipeline.json>` fetches them into
