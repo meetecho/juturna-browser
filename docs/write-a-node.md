@@ -105,9 +105,7 @@ nothing is installed at run time. `background_blur` does its blur in numpy, in
 
 **A time budget per message.** While `update()` runs, no other node of its
 Worker does. At 24 fps a video node must stay well under 42 ms per frame,
-including the time to receive and send it: for a 640×480 RGBA frame, about
-1.5 ms between two Workers and 0.5 ms for one more node in the same Worker
-([What each step costs](how-it-works.md#what-each-step-costs)).
+including the time to receive and send it.
 `background_blur` writes its own time in `meta['ms_blur']`, so the page can
 watch it.
 
@@ -304,10 +302,8 @@ its model through transformers.js, see
 
 ## 9. Choose a Worker
 
-With the webcam at 24 fps the demo measured 24 ms of segmentation and 26 ms
-of blur per frame ([Demos](demos.md#background-blur)): 50 ms, more than the
-42 ms budget of one Worker. The demo gives each node a Worker with the
-`worker` key:
+Segmentation and blur together do not fit in the 42 ms budget of one Worker
+at 24 fps, so the demo gives each node a Worker with the `worker` key:
 
 ```js
 const jt = await Juturna.create({ workers: ['main', 'ml', 'cpu'] });
